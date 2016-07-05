@@ -27,7 +27,9 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.v4.app.Fragment;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -44,14 +46,13 @@ import com.dexafree.materialList.view.MaterialListView;
 import java.util.ArrayList;
 import java.util.List;
 
-import nl.hnogames.domoticz.Interfaces.DomoticzFragmentListener;
+import hugo.weaving.DebugLog;
 import nl.hnogames.domoticz.MainActivity;
 import nl.hnogames.domoticz.R;
 import nl.hnogames.domoticz.SettingsActivity;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
-import nl.hnogames.domoticz.app.DomoticzFragment;
 
-public class Wizard extends DomoticzFragment implements DomoticzFragmentListener {
+public class Wizard extends Fragment {
 
     private final String WELCOME = "WELCOME_CARD";
     private final String FAVORITE = "FAVORITE_CARD";
@@ -66,6 +67,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
     private final String NFC = "NFC_CARD";
     private final String QRCODE = "QRCODE_CARD";
     private final String FINISH = "FINISH";
+    private final String SPEECH = "SPEECH";
 
     private final String TAG = Wizard.class.getSimpleName();
     private final int iSettingsResultCode = 995;
@@ -74,14 +76,19 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
     private Context context;
 
     @Override
+    @DebugLog
     public View onCreateView(LayoutInflater inflater,
                              ViewGroup container,
                              Bundle savedInstanceState) {
 
         root = (ViewGroup) inflater.inflate(R.layout.fragment_wizard, null);
+        ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.title_wizard);
         mSharedPrefs = new SharedPrefUtil(getActivity());
 
-        getActionBar().setTitle(R.string.title_wizard);
+        if (mSharedPrefs.darkThemeEnabled()) {
+            if ((root.findViewById(R.id.wizard_relativeLayout)) != null)
+                (root.findViewById(R.id.wizard_relativeLayout)).setBackgroundColor(getResources().getColor(R.color.background_dark));
+        }
         createCards();
         return root;
     }
@@ -95,6 +102,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
 
         mListView.setOnDismissCallback(new OnDismissCallback() {
             @Override
+            @DebugLog
             public void onDismiss(@NonNull Card card, int position) {
                 String cardTag = "Unknown";
                 try {
@@ -124,6 +132,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
         if (!mSharedPrefs.isCardCompleted(MULTISERVER)) cardsToGenerate.add(MULTISERVER);
         if (!mSharedPrefs.isCardCompleted(QRCODE)) cardsToGenerate.add(QRCODE);
         if (!mSharedPrefs.isCardCompleted(NFC)) cardsToGenerate.add(NFC);
+        if (!mSharedPrefs.isCardCompleted(SPEECH)) cardsToGenerate.add(SPEECH);
 
         if (cardsToGenerate.size() <= 0) cardsToGenerate.add(FINISH);
         List<Card> cards = generateCards(cardsToGenerate);
@@ -131,6 +140,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
     }
 
     public List<Card> generateCards(List<String> cardsToGenerate) {
+        int blueColor = ContextCompat.getColor(context, R.color.md_material_blue_600);
+        int otherColor = ContextCompat.getColor(context, R.color.md_white_1000);
+        int titleColorLight = Color.WHITE;
+        int titleColorOther = Color.GRAY;
+
+        if (mSharedPrefs.darkThemeEnabled()) {
+            titleColorOther = Color.WHITE;
+            otherColor = Color.parseColor("#3F3F3F");
+        }
 
         List<Card> cards = new ArrayList<>();
         for (String card : cardsToGenerate) {
@@ -141,34 +159,39 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_welcome_card_layout)
                         .setTitle(context.getString(R.string.wizard_welcome))
-                        .setTitleColor(Color.WHITE)
+                        .setTitleColor(titleColorLight)
                         .setDescription(context.getString(R.string.wizard_welcome_description))
-                        .setDescriptionColor(Color.WHITE)
-                        .setSubtitleColor(Color.WHITE)
-                        .setBackgroundColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
+                        .setDescriptionColor(titleColorLight)
+                        .setSubtitleColor(titleColorLight)
+                        .setBackgroundColor(blueColor)
                         .addAction(R.id.ok_button, new WelcomeButtonAction(context)
                                 .setText(context.getString(R.string.wizard_button_nice))
-                                .setTextColor(Color.WHITE)
+                                .setTextColor(titleColorLight)
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
                                 }))).endConfig().build());
             }
+
             if (card.equalsIgnoreCase(FAVORITE)) {
                 cards.add(new Card.Builder(context)
                         .setTag(FAVORITE)
                         .setDismissible()
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
+                        .setBackgroundColor(otherColor)
                         .setTitle(context.getString(R.string.wizard_favorites))
+                        .setTitleColor(titleColorOther)
                         .setDescription(context.getString(R.string.wizard_favorites_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_switches))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         ((MainActivity) getActivity()).changeFragment("nl.hnogames.domoticz.Fragments.Switches");
                                     }
@@ -178,6 +201,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -192,12 +216,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_startup))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_startup_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -207,6 +234,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -221,12 +249,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_geo))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_geo_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -236,6 +267,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -250,12 +282,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_nfc))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_nfc_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -265,6 +300,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -279,12 +315,14 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_qrcode))
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_qrcode_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -294,6 +332,39 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
+                                    public void onActionClicked(View view, Card card) {
+                                        card.dismiss();
+                                    }
+                                }))
+                        .endConfig()
+                        .build());
+            }
+            if (card.equalsIgnoreCase(SPEECH)) {
+                cards.add(new Card.Builder(context)
+                        .setTag(SPEECH)
+                        .setDismissible()
+                        .withProvider(new CardProvider())
+                        .setLayout(R.layout.material_basic_buttons_card)
+                        .setTitle(context.getString(R.string.wizard_speech))
+                        .setBackgroundColor(otherColor)
+                        .setDescription(context.getString(R.string.wizard_speech_description))
+                        .addAction(R.id.left_text_button, new TextViewAction(context)
+                                .setText(context.getString(R.string.wizard_button_settings))
+                                .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
+                                .setListener(new OnActionClickListener() {
+                                    @Override
+                                    @DebugLog
+                                    public void onActionClicked(View view, Card card) {
+                                        startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
+                                    }
+                                }))
+                        .addAction(R.id.right_text_button, new TextViewAction(context)
+                                .setText(context.getString(R.string.wizard_button_done))
+                                .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
+                                .setListener(new OnActionClickListener() {
+                                    @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -306,14 +377,18 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .setTag(WEAR)
                         .setDismissible()
                         .withProvider(new CardProvider())
+                        .setTitleColor(titleColorOther)
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_wear))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_wear_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -323,6 +398,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -337,12 +413,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_notifications))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_notifications_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -352,6 +431,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -366,12 +446,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_multiserver))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_multiserver_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_settings))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         startActivityForResult(new Intent(context, SettingsActivity.class), iSettingsResultCode);
                                     }
@@ -381,6 +464,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -395,12 +479,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_graph))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_graph_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_utilities))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         ((MainActivity) getActivity()).changeFragment("nl.hnogames.domoticz.Fragments.Utilities");
                                     }
@@ -410,6 +497,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -424,12 +512,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_filter))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_filter_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_nice))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         ((MainActivity) getActivity()).changeFragment("nl.hnogames.domoticz.Fragments.Switches");
                                     }
@@ -439,6 +530,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -453,12 +545,15 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_widgets))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_widgets_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText("")
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
 
@@ -469,6 +564,7 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         card.dismiss();
                                     }
@@ -483,15 +579,18 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                         .withProvider(new CardProvider())
                         .setLayout(R.layout.material_basic_buttons_card)
                         .setTitle(context.getString(R.string.wizard_menuitem))
+                        .setTitleColor(titleColorOther)
+                        .setBackgroundColor(otherColor)
                         .setDescription(context.getString(R.string.wizard_menuitem_description))
                         .addAction(R.id.left_text_button, new TextViewAction(context)
                                 .setText(context.getString(R.string.wizard_button_wizard))
                                 .setTextColor(ContextCompat.getColor(context, R.color.md_material_blue_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         mSharedPrefs.removeWizard();
-                                        ((MainActivity) getActivity()).drawNavigationMenu();
+                                        ((MainActivity) getActivity()).drawNavigationMenu(null);
                                         ((MainActivity) getActivity()).removeFragmentStack("nl.hnogames.domoticz.Fragments.Wizard");
                                         ((MainActivity) getActivity()).changeFragment("nl.hnogames.domoticz.Fragments.Dashboard");
                                     }
@@ -501,9 +600,10 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
                                 .setTextColor(ContextCompat.getColor(context, R.color.material_orange_600))
                                 .setListener(new OnActionClickListener() {
                                     @Override
+                                    @DebugLog
                                     public void onActionClicked(View view, Card card) {
                                         mSharedPrefs.removeWizard();
-                                        ((MainActivity) getActivity()).drawNavigationMenu();
+                                        ((MainActivity) getActivity()).drawNavigationMenu(null);
                                         ((MainActivity) getActivity()).removeFragmentStack("nl.hnogames.domoticz.Fragments.Wizard");
                                         ((MainActivity) getActivity()).changeFragment("nl.hnogames.domoticz.Fragments.Dashboard");
                                     }
@@ -514,15 +614,5 @@ public class Wizard extends DomoticzFragment implements DomoticzFragmentListener
 
         }
         return cards;
-    }
-
-    @Override
-    public void checkConnection() {
-        // Overriding this method to prevent unnecessary work in the parent fragment
-    }
-
-    @Override
-    public void onConnectionOk() {
-        // Will not be called since the checkConnection() method is overridden
     }
 }

@@ -22,12 +22,16 @@
 
 package nl.hnogames.domoticz.Containers;
 
+import android.support.annotation.NonNull;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class WeatherInfo {
+import java.io.Serializable;
+
+public class WeatherInfo implements Comparable, Serializable {
     private final boolean isProtected;
-    private JSONObject jsonObject;
+    private String jsonObject;
     private int idx;
 
     private String Name;
@@ -53,7 +57,7 @@ public class WeatherInfo {
 
 
     public WeatherInfo(JSONObject row) throws JSONException {
-        this.jsonObject = row;
+        this.jsonObject = row.toString();
 
         isProtected = row.getBoolean("Protected");
         idx = row.getInt("idx");
@@ -71,9 +75,12 @@ public class WeatherInfo {
         if (row.has("Rain")) Rain = row.getString("Rain");
         if (row.has("RainRate")) RainRate = row.getString("RainRate");
 
-        if (Type.equals("Rain")) Data = Data.substring(Data.indexOf(';') + 1, Data.length());
-        if (Type.equals("Wind")) Data = Data.substring(0, Data.indexOf(';'));
-
+        if (Type.equals("Rain") && Data.indexOf(';') >= 0) {
+            Data = Data.substring(Data.indexOf(';') + 1);
+        }
+        if (Type.equals("Wind") && Data.indexOf(';') >= 0) {
+            Data = Data.substring(0, Data.indexOf(';'));
+        }
         if (row.has("DewPoint")) DewPoint = row.getLong("DewPoint");
         if (row.has("Temp")) Temp = row.getLong("Temp");
         if (row.has("ForecastStr")) ForecastStr = row.getString("ForecastStr");
@@ -244,7 +251,12 @@ public class WeatherInfo {
         LastUpdate = lastUpdate;
     }
 
-    public JSONObject getJsonObject() {
+    public String getJsonObject() {
         return this.jsonObject;
+    }
+
+    @Override
+    public int compareTo(@NonNull Object another) {
+        return this.getName().compareTo(((DevicesInfo) another).getName());
     }
 }

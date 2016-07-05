@@ -88,24 +88,33 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        mSharedPrefs = new SharedPrefUtil(this);
+        if (mSharedPrefs.darkThemeEnabled())
+            setTheme(R.style.AppThemeDark);
+        else
+            setTheme(R.style.AppTheme);
+        if (!UsefulBits.isEmpty(mSharedPrefs.getDisplayLanguage()))
+            UsefulBits.setDisplayLanguage(this, mSharedPrefs.getDisplayLanguage());
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_nfc_settings);
         coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinatorLayout);
+        if (mSharedPrefs.darkThemeEnabled()) {
+            coordinatorLayout.setBackgroundColor(getResources().getColor(R.color.background_dark));
+        }
 
         if (getSupportActionBar() != null)
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         this.setTitle(R.string.category_nfc);
 
         mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
-
         if (mNfcAdapter != null) {
-            showSimpleSnackbar(getString(R.string.nfc_register));
+            UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.nfc_register, Snackbar.LENGTH_SHORT);
         } else {
-            showSimpleSnackbar(getString(R.string.nfc_not_supported));
+            UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.nfc_not_supported, Snackbar.LENGTH_SHORT);
         }
 
         domoticz = new Domoticz(this, null);
-        mSharedPrefs = new SharedPrefUtil(this);
         nfcList = mSharedPrefs.getNFCList();
         adapter = new NFCAdapter(this, nfcList, this);
 
@@ -115,19 +124,30 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
     protected void onResume() {
         super.onResume();
 
-        // creating pending intent:
-        PendingIntent mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
+        try {
+            // creating pending intent:
+            PendingIntent mPendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), 0);
 
-        // creating intent receiver for NFC events:
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(NfcAdapter.ACTION_TAG_DISCOVERED);
-        filter.addAction(NfcAdapter.ACTION_NDEF_DISCOVERED);
-        filter.addAction(NfcAdapter.ACTION_TECH_DISCOVERED);
+            // creating intent receiver for NFC events:
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(NfcAdapter.ACTION_TAG_DISCOVERED);
+            filter.addAction(NfcAdapter.ACTION_NDEF_DISCOVERED);
+            filter.addAction(NfcAdapter.ACTION_TECH_DISCOVERED);
 
-        // enabling foreground dispatch for getting intent from NFC event:
-        if (mNfcAdapter == null)
-            mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
-        mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, new IntentFilter[]{filter}, this.techList);
+            // enabling foreground dispatch for getting intent from NFC event:
+            if (mNfcAdapter == null) {
+                mNfcAdapter = NfcAdapter.getDefaultAdapter(this);
+
+                if (mNfcAdapter != null) {
+                    UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.nfc_register, Snackbar.LENGTH_SHORT);
+                } else {
+                    UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.nfc_not_supported, Snackbar.LENGTH_SHORT);
+                }
+            }
+            if (mNfcAdapter != null)
+                mNfcAdapter.enableForegroundDispatch(this, mPendingIntent, new IntentFilter[]{filter}, this.techList);
+        } catch (Exception ex) {
+        }
     }
 
     @Override
@@ -153,7 +173,7 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
             }
 
             if (newTagFound) {
-                showSimpleSnackbar(getString(R.string.nfc_tag_found) + ": " + tagID);
+                UsefulBits.showSimpleSnackbar(this, coordinatorLayout, getString(R.string.nfc_tag_found) + ": " + tagID, Snackbar.LENGTH_SHORT);
                 new MaterialDialog.Builder(this)
                         .title(R.string.nfc_tag_found)
                         .content(R.string.nfc_tag_name)
@@ -161,16 +181,18 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
                         .input(R.string.category_nfc, 0, new MaterialDialog.InputCallback() {
                             @Override
                             public void onInput(@NonNull MaterialDialog dialog, CharSequence input) {
-                                showSimpleSnackbar(getString(R.string.nfc_saved) + ": " + input);
-                                NFCInfo newNFC = new NFCInfo();
-                                newNFC.setId(tagID);
-                                newNFC.setName(String.valueOf(input));
-                                updateNFC(newNFC);
+                                if (!UsefulBits.isEmpty(String.valueOf(input))) {
+                                    UsefulBits.showSimpleSnackbar(NFCSettingsActivity.this, coordinatorLayout, getString(R.string.nfc_saved) + ": " + input, Snackbar.LENGTH_SHORT);
+                                    NFCInfo newNFC = new NFCInfo();
+                                    newNFC.setId(tagID);
+                                    newNFC.setName(String.valueOf(input));
+                                    updateNFC(newNFC);
+                                }
                                 busyWithTag = false;
                             }
                         }).show();
             } else {
-                showSimpleSnackbar(getString(R.string.nfc_exists));
+                UsefulBits.showSimpleSnackbar(NFCSettingsActivity.this, coordinatorLayout, R.string.nfc_exists, Snackbar.LENGTH_SHORT);
                 busyWithTag = false;
             }
         }
@@ -178,23 +200,44 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
 
     private void createListView() {
         ListView listView = (ListView) findViewById(R.id.listView);
+        if (mSharedPrefs.darkThemeEnabled()) {
+            listView.setBackgroundColor(getResources().getColor(R.color.background_dark));
+        }
         SwingBottomInAnimationAdapter animationAdapter = new SwingBottomInAnimationAdapter(adapter);
         animationAdapter.setAbsListView(listView);
         listView.setAdapter(animationAdapter);
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int item, long id) {
-
+                showEditDialog(nfcList.get(item));
             }
         });
         listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, final int position, long id) {
                 getSwitchesAndShowSwitchesDialog(nfcList.get(position));
-
                 return true;
             }
         });
+    }
+
+    private void showEditDialog(final NFCInfo mNFCInfo) {
+        busyWithTag = true;
+        new MaterialDialog.Builder(this)
+                .title(R.string.nfc_tag_edit)
+                .content(R.string.nfc_tag_name)
+                .inputType(InputType.TYPE_CLASS_TEXT)
+                .negativeText(R.string.cancel)
+                .input(this.getString(R.string.category_nfc), mNFCInfo.getName(), new MaterialDialog.InputCallback() {
+                    @Override
+                    public void onInput(@NonNull MaterialDialog dialog, CharSequence input) {
+                        if (!UsefulBits.isEmpty(String.valueOf(input))) {
+                            mNFCInfo.setName(String.valueOf(input));
+                            updateNFC(mNFCInfo);
+                        }
+                        busyWithTag = false;
+                    }
+                }).show();
     }
 
     private void getSwitchesAndShowSwitchesDialog(final NFCInfo nfcInfo) {
@@ -206,17 +249,13 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
 
             @Override
             public void onError(Exception error) {
-                Snackbar.make(coordinatorLayout,
-                        R.string.unable_to_get_switches,
-                        Snackbar.LENGTH_SHORT)
-                        .setAction(R.string.retry, new View.OnClickListener() {
+                UsefulBits.showSnackbar(NFCSettingsActivity.this, coordinatorLayout, NFCSettingsActivity.this.getString(R.string.unable_to_get_switches), Snackbar.LENGTH_SHORT,
+                        null, new View.OnClickListener() {
                             @Override
                             public void onClick(View v) {
-                                // User clicked retry button
                                 getSwitchesAndShowSwitchesDialog(nfcInfo);
                             }
-                        })
-                        .show();
+                        }, NFCSettingsActivity.this.getString(R.string.retry));
             }
         });
     }
@@ -231,10 +270,10 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
                 domoticz);
         infoDialog.onDismissListener(new SwitchDialog.DismissListener() {
             @Override
-            public void onDismiss(int selectedSwitchIDX, String selectedSwitchPassword) {
+            public void onDismiss(int selectedSwitchIDX, String selectedSwitchPassword, String selectedSwitchName) {
                 nfcInfo.setSwitchIdx(selectedSwitchIDX);
                 nfcInfo.setSwitchPassword(selectedSwitchPassword);
-
+                nfcInfo.setSwitchName(selectedSwitchName);
                 updateNFC(nfcInfo);
             }
         });
@@ -283,11 +322,6 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
         return result;
     }
 
-    private void showSimpleSnackbar(String message) {
-        Snackbar.make(coordinatorLayout, message, Snackbar.LENGTH_SHORT).show();
-    }
-
-
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
@@ -324,32 +358,26 @@ public class NFCSettingsActivity extends AppCompatActivity implements NFCClickLi
         // Show snackbar with undo option
         String text = String.format(getString(R.string.something_deleted),
                 getString(R.string.nfc));
-        Snackbar.make(coordinatorLayout,
-                text,
-                Snackbar.LENGTH_LONG)
-                .setAction(R.string.undo, new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        updateNFC(nfcInfo);//undo
-                    }
-                })
-                .setCallback(new Snackbar.Callback() {
-                    @Override
-                    public void onDismissed(Snackbar snackbar, int event) {
-                        super.onDismissed(snackbar, event);
 
-                        switch (event) {
-                            case Snackbar.Callback.DISMISS_EVENT_TIMEOUT:
-                            case Snackbar.Callback.DISMISS_EVENT_CONSECUTIVE:
-                            case Snackbar.Callback.DISMISS_EVENT_MANUAL:
-                                // Snackbar was timed out so let's remove the data from
-                                // shared preferences
-                                removeNFCFromListView(nfcInfo);
-                                break;
-                        }
-                    }
-                })
-                .show();
+        UsefulBits.showSnackbar(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
+            @Override
+            public void onDismissed(Snackbar snackbar, int event) {
+                super.onDismissed(snackbar, event);
+
+                switch (event) {
+                    case Snackbar.Callback.DISMISS_EVENT_TIMEOUT:
+                    case Snackbar.Callback.DISMISS_EVENT_CONSECUTIVE:
+                    case Snackbar.Callback.DISMISS_EVENT_MANUAL:
+                        removeNFCFromListView(nfcInfo);
+                        break;
+                }
+            }
+        }, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                updateNFC(nfcInfo);
+            }
+        }, this.getString(R.string.undo));
     }
 
     private void removeNFCFromListView(NFCInfo nfcInfo) {

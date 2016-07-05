@@ -27,11 +27,17 @@ import android.support.v7.app.AppCompatActivity;
 import android.view.MenuItem;
 
 import nl.hnogames.domoticz.Fragments.Camera;
+import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 
 public class CameraActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        if (new SharedPrefUtil(this).darkThemeEnabled())
+            setTheme(R.style.AppThemeDark);
+        else
+            setTheme(R.style.AppTheme);
+
         super.onCreate(savedInstanceState);
 
         Bundle bundle = getIntent().getExtras();
@@ -47,7 +53,7 @@ public class CameraActivity extends AppCompatActivity {
 
         Camera camera = new Camera();
         if (getSupportActionBar() != null) getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getFragmentManager().beginTransaction().replace(android.R.id.content,
+        getSupportFragmentManager().beginTransaction().replace(android.R.id.content,
                 camera).commit();
         camera.setImage(imageUrl);
     }

@@ -8,6 +8,7 @@
   <string name="drawer_open">Ouvrir le menu</string>
   <string name="drawer_close">Fermer le menu</string>
   <string name="msg_please_wait">Patientez&#8230;</string>
+  <string name="changelog">Changelog</string>
   <string name="button_state_on">On</string>
   <string name="button_state_off">Off</string>
   <string name="button_state_closed">Fermé</string>
@@ -49,6 +50,7 @@
   <string name="add">Ajouter</string>
   <string name="cancel">Annuler</string>
   <string name="ok">Ok</string>
+  <string name="upgrade">UPGRADE</string>
   <string name="something_went_wrong">Quelque chose s\'est mal passé</string>
   <string name="no_network_available">Erreur : aucune connexion disponible</string>
   <string name="oops">Oops !</string>
@@ -76,7 +78,7 @@
   <string name="device_image_description">Image du dispositif</string>
   <string name="white">Blanc</string>
   <string name="refresh">Actualiser</string>
-  <string name="domoticz_logo">Domoticz logo</string>
+  <string name="domoticz_logo">Logo Domoticz</string>
   <string name="this_take_minutes">Cela peut prendre plusieurs minutes.</string>
   <string name="continue_question">Continuer ?</string>
   <string name="cant_remove_default_server">Impossible de supprimer le serveur par défaut</string>

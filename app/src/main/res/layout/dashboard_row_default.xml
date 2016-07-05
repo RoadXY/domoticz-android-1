@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/row_global_wrapper"
+    style="@style/background_listview"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="@color/material_grey_300_"
-    android:paddingLeft="@dimen/row_space"
-    android:paddingRight="@dimen/row_space">
+    android:layout_height="wrap_content">
 
     <LinearLayout
+        android:id="@+id/row_wrapper"
+        style="@style/listview_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bordershadow"
-        android:foreground="?android:attr/selectableItemBackground"
         android:longClickable="true"
         android:minHeight="?android:attr/listPreferredItemHeight"
         android:orientation="horizontal"

@@ -8,6 +8,7 @@
   <string name="drawer_open">Menu openen</string>
   <string name="drawer_close">Menu sluiten</string>
   <string name="msg_please_wait">Even geduld&#8230;</string>
+  <string name="changelog">Changelog</string>
   <string name="button_state_on">Aan</string>
   <string name="button_state_off">Uit</string>
   <string name="button_state_closed">Gesloten</string>
@@ -49,6 +50,7 @@
   <string name="add">Toevoegen</string>
   <string name="cancel">Annuleren</string>
   <string name="ok">Ok</string>
+  <string name="upgrade">UPGRADE</string>
   <string name="something_went_wrong">Oeps, er ging iets mis</string>
   <string name="no_network_available">Fout: Geen netwerkverbinding beschikbaar</string>
   <string name="oops">OEPS!</string>

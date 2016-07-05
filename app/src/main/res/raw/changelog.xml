@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<changelog bulletedList="false">
+
+    <changelogversion versionName="0.1.270" changeDate="June 30, 2016">
+        <changelogtext>[b]PREMIUM[/b] Fixes on Speech Commands</changelogtext>
+        <changelogtext>Show cached data when offline</changelogtext>
+        <changelogtext>Improved speed on Dashboard (update Domoticz base system via Beta channel)</changelogtext>
+        <changelogtext>Auto check on updates</changelogtext>
+        <changelogtext>Validate apk</changelogtext>
+        <changelogtext>Improve upgrade to premium notifications</changelogtext>
+        <changelogtext>Various crash fixes</changelogtext>
+    </changelogversion>
+
+    <changelogversion versionName="0.1.266" changeDate="June 16, 2016">
+        <changelogtext>[b]PREMIUM[/b] Added Speech Commands</changelogtext>
+        <changelogtext>[b]PREMIUM[/b] Added Multi users support</changelogtext>
+        <changelogtext>[b]PREMIUM[/b] NFC auto open Domoticz app</changelogtext>
+        <changelogtext>[b]PREMIUM[/b] Added Speech Command Widget</changelogtext>
+        <changelogtext>[b]PREMIUM[/b] Added QR Code Widget</changelogtext>
+        <changelogtext>New Navigation menu</changelogtext>
+        <changelogtext>Tablet view changes</changelogtext>
+        <changelogtext>Manual add Wifi SSID</changelogtext>
+        <changelogtext>Improved logging for debugging</changelogtext>
+        <changelogtext>Added changelog dialog</changelogtext>
+        <changelogtext>Various fixes</changelogtext>
+    </changelogversion>
+
+</changelog>

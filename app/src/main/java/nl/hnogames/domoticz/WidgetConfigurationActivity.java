@@ -23,6 +23,7 @@ import nl.hnogames.domoticz.Interfaces.DevicesReceiver;
 import nl.hnogames.domoticz.Service.WidgetProviderLarge;
 import nl.hnogames.domoticz.UI.PasswordDialog;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
+import nl.hnogames.domoticz.Utils.UsefulBits;
 import nl.hnogames.domoticz.Welcome.WelcomeViewActivity;
 
 import static android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID;
@@ -32,6 +33,8 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
 
     private final String TAG = this.getClass().getSimpleName();
     private final int iWelcomeResultCode = 885;
+    private final int iVoiceAction = -55;
+    private final int iQRCodeAction = -66;
     int mAppWidgetId;
     private SharedPrefUtil mSharedPrefs;
     private Domoticz domoticz;
@@ -40,18 +43,22 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        mSharedPrefs = new SharedPrefUtil(this);
+        if (mSharedPrefs.darkThemeEnabled())
+            setTheme(R.style.AppThemeDark);
+        else
+            setTheme(R.style.AppTheme);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.widget_configuration);
         setResult(RESULT_CANCELED);
 
-        if (BuildConfig.LITE_VERSION) {
+        if (BuildConfig.LITE_VERSION || !mSharedPrefs.isAPKValidated()) {
             Toast.makeText(this, getString(R.string.wizard_widgets) + " " + getString(R.string.premium_feature), Toast.LENGTH_LONG).show();
             this.finish();
         }
 
-        mSharedPrefs = new SharedPrefUtil(this);
         domoticz = new Domoticz(this, null);
-
         this.setTitle(getString(R.string.pick_device_title));
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(false);
@@ -86,13 +93,25 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
         }
     }
 
-
     public void initListViews() {
         if (mSharedPrefs.isWelcomeWizardSuccess()) {
             Log.i(TAG, "Showing switches for widget");
             domoticz.getDevices(new DevicesReceiver() {
                 @Override
                 public void onReceiveDevices(final ArrayList<DevicesInfo> mDevicesInfo) {
+                    if (mSharedPrefs.isSpeechEnabled()) {
+                        DevicesInfo oVoiceRow = new DevicesInfo();
+                        oVoiceRow.setIdx(iVoiceAction);
+                        oVoiceRow.setName(WidgetConfigurationActivity.this.getString(R.string.action_speech));
+                        mDevicesInfo.add(0, oVoiceRow);
+                    }
+                    if (mSharedPrefs.isQRCodeEnabled()) {
+                        DevicesInfo oQRCodeRow = new DevicesInfo();
+                        oQRCodeRow.setIdx(iQRCodeAction);
+                        oQRCodeRow.setName(WidgetConfigurationActivity.this.getString(R.string.action_qrcode_scan));
+                        mDevicesInfo.add(0, oQRCodeRow);
+                    }
+
                     ListView listView = (ListView) findViewById(R.id.list);
                     adapter = new WidgetsAdapter(WidgetConfigurationActivity.this, domoticz, mDevicesInfo);
 
@@ -108,6 +127,10 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
                                     @Override
                                     public void onDismiss(String password) {
                                         showAppWidget(mDeviceInfo, password);
+                                    }
+
+                                    @Override
+                                    public void onCancel() {
                                     }
                                 });
                             } else {
@@ -146,11 +169,16 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
             mAppWidgetId = extras.getInt(EXTRA_APPWIDGET_ID,
                     INVALID_APPWIDGET_ID);
 
-            if (mSelectedSwitch.getType().equals(Domoticz.Scene.Type.GROUP) || mSelectedSwitch.getType().equals(Domoticz.Scene.Type.SCENE)) {
-                mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, true, password);
-            } else {
+            if (UsefulBits.isEmpty(mSelectedSwitch.getType())) {
                 mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, false, password);
+            } else {
+                if (mSelectedSwitch.getType().equals(Domoticz.Scene.Type.GROUP) || mSelectedSwitch.getType().equals(Domoticz.Scene.Type.SCENE)) {
+                    mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, true, password);
+                } else {
+                    mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, false, password);
+                }
             }
+
             Intent startService = new Intent(WidgetConfigurationActivity.this,
                     WidgetProviderLarge.UpdateWidgetService.class);
             startService.putExtra(EXTRA_APPWIDGET_ID, mAppWidgetId);

@@ -1,12 +1,35 @@
+/*
+ * Copyright (C) 2015 Domoticz
+ *
+ *  Licensed to the Apache Software Foundation (ASF) under one
+ *  or more contributor license agreements.  See the NOTICE file
+ *  distributed with this work for additional information
+ *  regarding copyright ownership.  The ASF licenses this file
+ *  to you under the Apache License, Version 2.0 (the
+ *  "License"); you may not use this file except in compliance
+ *  with the License.  You may obtain a copy of the License at
+ *
+ *          http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an
+ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ *  KIND, either express or implied.  See the License for the
+ *  specific language governing permissions and limitations
+ *  under the License.
+ *
+ */
+
 package nl.hnogames.domoticz.Welcome;
 
-import android.app.Fragment;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.v4.app.Fragment;
 import android.support.v7.app.AlertDialog;
+import android.text.InputType;
 import android.text.method.HideReturnsTransformationMethod;
 import android.text.method.PasswordTransformationMethod;
 import android.view.LayoutInflater;
@@ -21,9 +44,11 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Switch;
 
+import com.afollestad.materialdialogs.MaterialDialog;
 import com.marvinlabs.widget.floatinglabel.edittext.FloatingLabelEditText;
 
 import java.util.ArrayList;
+import java.util.Set;
 
 import nl.hnogames.domoticz.Containers.ServerInfo;
 import nl.hnogames.domoticz.Domoticz.Domoticz;
@@ -64,6 +89,7 @@ public class SetupServerSettings extends Fragment {
     private ServerInfo newServer;
     private boolean isUpdateRequest = false;
     private Context mContext;
+    private Button btnManualSSID;
 
     public static SetupServerSettings newInstance(int instance) {
         SetupServerSettings f = new SetupServerSettings();
@@ -97,7 +123,10 @@ public class SetupServerSettings extends Fragment {
                              Bundle savedInstanceState) {
 
         callingInstance = getArguments().getInt(INSTANCE);
-        v = inflater.inflate(R.layout.fragment_add_server, container, false);
+        if (mSharedPrefs.darkThemeEnabled())
+            v = inflater.inflate(R.layout.fragment_add_server_dark, container, false);
+        else
+            v = inflater.inflate(R.layout.fragment_add_server, container, false);
 
         getLayoutReferences();
         setPreferenceValues();
@@ -134,6 +163,36 @@ public class SetupServerSettings extends Fragment {
         cbShowPasswordLocal = (CheckBox) v.findViewById(R.id.showpasswordlocal);
 
         startScreen_spinner = (Spinner) v.findViewById(R.id.startScreen_spinner);
+
+        btnManualSSID = (Button) v.findViewById(R.id.set_ssid);
+        btnManualSSID.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                new MaterialDialog.Builder(getContext())
+                        .title(R.string.welcome_ssid_button_prompt)
+                        .content(R.string.welcome_msg_no_ssid_found)
+                        .inputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD)
+                        .input(null, null, new MaterialDialog.InputCallback() {
+                            @Override
+                            public void onInput(MaterialDialog dialog, CharSequence input) {
+                                Set<String> ssidFromPrefs = mServerUtil.getActiveServer().getLocalServerSsid();
+                                final ArrayList<String> ssidListFromPrefs = new ArrayList<>();
+                                if (ssidFromPrefs != null) {
+                                    if (ssidFromPrefs.size() > 0) {
+                                        for (String wifi : ssidFromPrefs) {
+                                            ssidListFromPrefs.add(wifi);
+                                        }
+                                    }
+                                }
+                                ssidListFromPrefs.add(String.valueOf(input));
+                                mServerUtil.getActiveServer().setLocalServerSsid(ssidListFromPrefs);
+
+                                setSsid_spinner();
+                            }
+                        }).show();
+            }
+        });
+
         startScreen_spinner.setVisibility(View.GONE);
         v.findViewById(R.id.startScreen_title).setVisibility(View.GONE);
         v.findViewById(R.id.server_settings_title).setVisibility(View.GONE);
@@ -197,8 +256,13 @@ public class SetupServerSettings extends Fragment {
 
     private void checkConnectionData() {
         buildServerInfo();
+
+        if (mServerUtil == null)
+            mServerUtil = new ServerUtil(getActivity());
+
         final Domoticz mDomoticz = new Domoticz(getActivity(), mServerUtil);
         String status = mDomoticz.isConnectionDataComplete(newServer, false);
+
         if (!UsefulBits.isEmpty(status)) {
             showErrorPopup(getString(R.string.welcome_msg_connectionDataIncomplete) + "\n\n" + status + "\n\n"
                     + getString(R.string.welcome_msg_correctOnPreviousPage));

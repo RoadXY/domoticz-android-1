@@ -25,9 +25,10 @@ package nl.hnogames.domoticz.Containers;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class ConfigInfo {
+import java.io.Serializable;
+import java.util.ArrayList;
 
-    private JSONObject jsonObject;
+public class ConfigInfo implements Serializable {
 
     private double DegreeDaysBaseTemperature;
     private int FiveMinuteHistoryDays;
@@ -40,6 +41,7 @@ public class ConfigInfo {
     private long dateOfConfig;
     private String language;
     private String DashboardType;
+    private ArrayList<UserInfo> mUsers;
 
     public ConfigInfo(JSONObject row) throws JSONException {
         mapFields(row);
@@ -54,7 +56,6 @@ public class ConfigInfo {
     }
 
     private void mapFields(JSONObject row) throws JSONException {
-        this.jsonObject = row;
         if (row.has("WindSign"))
             WindSign = row.getString("WindSign");
         if (row.has("TempSign"))
@@ -75,10 +76,6 @@ public class ConfigInfo {
             language = row.getString("language");
         if (row.has("DashboardType"))
             DashboardType = row.getString("DashboardType");
-    }
-
-    public String getJsonObject() {
-        return jsonObject.toString();
     }
 
     public String getWindSign() {
@@ -127,5 +124,13 @@ public class ConfigInfo {
 
     public String getDashboardType() {
         return DashboardType;
+    }
+
+    public ArrayList<UserInfo> getUsers() {
+        return mUsers;
+    }
+
+    public void setUsers(ArrayList<UserInfo> mUsers) {
+        this.mUsers = mUsers;
     }
 }

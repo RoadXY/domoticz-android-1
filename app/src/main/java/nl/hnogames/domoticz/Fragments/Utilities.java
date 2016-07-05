@@ -24,20 +24,21 @@ package nl.hnogames.domoticz.Fragments;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.support.design.widget.Snackbar;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
-import android.widget.AdapterView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import com.afollestad.materialdialogs.DialogAction;
-import com.nhaarman.listviewanimations.appearance.simple.SwingBottomInAnimationAdapter;
 
 import java.util.ArrayList;
 
+import hugo.weaving.DebugLog;
+import jp.wasabeef.recyclerview.adapters.SlideInBottomAnimationAdapter;
 import nl.hnogames.domoticz.Adapters.UtilityAdapter;
 import nl.hnogames.domoticz.Containers.SwitchLogInfo;
 import nl.hnogames.domoticz.Containers.UtilitiesInfo;
@@ -53,9 +54,11 @@ import nl.hnogames.domoticz.UI.PasswordDialog;
 import nl.hnogames.domoticz.UI.SwitchLogInfoDialog;
 import nl.hnogames.domoticz.UI.TemperatureDialog;
 import nl.hnogames.domoticz.UI.UtilitiesInfoDialog;
-import nl.hnogames.domoticz.app.DomoticzFragment;
+import nl.hnogames.domoticz.Utils.SerializableManager;
+import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticz.app.DomoticzRecyclerFragment;
 
-public class Utilities extends DomoticzFragment implements DomoticzFragmentListener,
+public class Utilities extends DomoticzRecyclerFragment implements DomoticzFragmentListener,
         UtilityClickListener {
 
     private ArrayList<UtilitiesInfo> mUtilitiesInfos;
@@ -64,26 +67,34 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
     private Context mContext;
     private String filter = "";
     private LinearLayout lExtraPanel = null;
+    private SlideInBottomAnimationAdapter alphaSlideIn;
     private Animation animShow, animHide;
 
-
     @Override
-    public void refreshFragment() {
-        if (mSwipeRefreshLayout != null)
-            mSwipeRefreshLayout.setRefreshing(true);
-
+    public void onConnectionFailed() {
         processUtilities();
     }
 
     @Override
+    @DebugLog
+    public void refreshFragment() {
+        if (mSwipeRefreshLayout != null)
+            mSwipeRefreshLayout.setRefreshing(true);
+        processUtilities();
+    }
+
+    @Override
+    @DebugLog
     public void onAttach(Context context) {
         super.onAttach(context);
         mContext = context;
-        getActionBar().setTitle(R.string.title_utilities);
+        if (getActionBar() != null)
+            getActionBar().setTitle(R.string.title_utilities);
         initAnimation();
     }
 
     @Override
+    @DebugLog
     public void Filter(String text) {
         filter = text;
         try {
@@ -96,6 +107,7 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
     }
 
     @Override
+    @DebugLog
     public void onConnectionOk() {
         super.showSpinner(true);
         processUtilities();
@@ -110,75 +122,30 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
         if (mSwipeRefreshLayout != null)
             mSwipeRefreshLayout.setRefreshing(true);
 
-        final UtilityClickListener listener = this;
-        mDomoticz.getUtilities(new UtilitiesReceiver() {
-
-            @Override
-            public void onReceiveUtilities(ArrayList<UtilitiesInfo> mUtilitiesInfos) {
-                successHandling(mUtilitiesInfos.toString(), false);
-
-                Utilities.this.mUtilitiesInfos = mUtilitiesInfos;
-                adapter = new UtilityAdapter(mContext, mDomoticz, mUtilitiesInfos, listener);
-
-                createListView();
-            }
-
-            @Override
-            public void onError(Exception error) {
-                errorHandling(error);
-            }
-        });
+        new GetCachedDataTask().execute();
     }
 
     private void createListView() {
-
         if (getView() != null) {
-            SwingBottomInAnimationAdapter animationAdapter =
-                    new SwingBottomInAnimationAdapter(adapter);
-            animationAdapter.setAbsListView(listView);
-            listView.setAdapter(animationAdapter);
+            if (adapter == null) {
+                adapter = new UtilityAdapter(mContext, mDomoticz, mUtilitiesInfos, this);
+                alphaSlideIn = new SlideInBottomAnimationAdapter(adapter);
+                gridView.setAdapter(alphaSlideIn);
+            } else {
+                adapter.setData(mUtilitiesInfos);
+                adapter.notifyDataSetChanged();
+                alphaSlideIn.notifyDataSetChanged();
+            }
 
-            listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-                @Override
-                public boolean onItemLongClick(AdapterView<?> adapterView, View view,
-                                               int index, long id) {
-                    showInfoDialog(adapter.filteredData.get(index));
-                    return true;
-                }
-            });
-            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-                    LinearLayout extra_panel = (LinearLayout) v.findViewById(R.id.extra_panel);
-                    if (extra_panel != null) {
-                        if (extra_panel.getVisibility() == View.VISIBLE) {
-                            extra_panel.startAnimation(animHide);
-                            extra_panel.setVisibility(View.GONE);
-                        } else {
-                            extra_panel.setVisibility(View.VISIBLE);
-                            extra_panel.startAnimation(animShow);
-                        }
-
-                        if (extra_panel != lExtraPanel) {
-                            if (lExtraPanel != null) {
-                                if (lExtraPanel.getVisibility() == View.VISIBLE) {
-                                    lExtraPanel.startAnimation(animHide);
-                                    lExtraPanel.setVisibility(View.GONE);
-                                }
-                            }
-                        }
-
-                        lExtraPanel = extra_panel;
-                    }
-                }
-            });
             mSwipeRefreshLayout.setRefreshing(false);
             mSwipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
                 @Override
+                @DebugLog
                 public void onRefresh() {
                     processUtilities();
                 }
             });
+
             super.showSpinner(false);
             this.Filter(filter);
         }
@@ -195,6 +162,7 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
         infoDialog.show();
         infoDialog.onDismissListener(new UtilitiesInfoDialog.DismissListener() {
             @Override
+            @DebugLog
             public void onDismiss(boolean isChanged, boolean isFavorite) {
                 if (isChanged) changeFavorite(mUtilitiesInfo, isFavorite);
             }
@@ -206,13 +174,9 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
         addDebugText("Set idx " + mUtilitiesInfo.getIdx() + " favorite to " + isFavorite);
 
         if (isFavorite)
-            Snackbar.make(coordinatorLayout,
-                    mUtilitiesInfo.getName() + " " + mContext.getString(R.string.favorite_added),
-                    Snackbar.LENGTH_SHORT).show();
+            UsefulBits.showSimpleSnackbar(mContext, coordinatorLayout, mUtilitiesInfo.getName() + " " + mContext.getString(R.string.favorite_added), Snackbar.LENGTH_SHORT);
         else
-            Snackbar.make(coordinatorLayout,
-                    mUtilitiesInfo.getName() + " " + mContext.getString(R.string.favorite_removed),
-                    Snackbar.LENGTH_SHORT).show();
+            UsefulBits.showSimpleSnackbar(mContext, coordinatorLayout, mUtilitiesInfo.getName() + " " + mContext.getString(R.string.favorite_removed), Snackbar.LENGTH_SHORT);
 
         int jsonAction;
         int jsonUrl = Domoticz.Json.Url.Set.FAVORITE;
@@ -227,12 +191,14 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
                 null,
                 new setCommandReceiver() {
                     @Override
+                    @DebugLog
                     public void onReceiveResult(String result) {
                         successHandling(result, false);
                         mUtilitiesInfo.setFavoriteBoolean(isFavorite);
                     }
 
                     @Override
+                    @DebugLog
                     public void onError(Exception error) {
                         errorHandling(error);
                     }
@@ -263,19 +229,11 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
      */
     private void notifyDataSetChanged() {
         addDebugText("notifyDataSetChanged");
-
-        // save index and top position
-        int index = listView.getFirstVisiblePosition();
-        View v = listView.getChildAt(0);
-        int top = (v == null) ? 0 : v.getTop();
-
         adapter.notifyDataSetChanged();
-
-        listView.setAdapter(adapter);
-        listView.setSelectionFromTop(index, top);
     }
 
     @Override
+    @DebugLog
     public void errorHandling(Exception error) {
         if (error != null) {
             // Let's check if were still attached to an activity
@@ -286,6 +244,7 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
     }
 
     @Override
+    @DebugLog
     public void onPause() {
         super.onPause();
     }
@@ -300,10 +259,12 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
     }
 
     @Override
+    @DebugLog
     public void onClick(UtilitiesInfo utility) {
     }
 
     @Override
+    @DebugLog
     public void onLogClick(final UtilitiesInfo utility, final String range) {
         /*
             Replace so we get the right log
@@ -312,6 +273,7 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
                 .replace("Electric", "counter")
                 .replace("kWh", "counter")
                 .replace("Energy", "counter")
+                .replace("SetPoint", "temp")
                 .replace("YouLess counter", "counter");
 
         Intent intent = new Intent(mContext, GraphActivity.class);
@@ -321,11 +283,10 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
         intent.putExtra("TITLE", utility.getSubType().toUpperCase());
         intent.putExtra("STEPS", 3);
         startActivity(intent);
-
-        // Snackbar.make(coordinatorLayout, mContext.getString(R.string.error_log) + ": " + temp.getName(), Snackbar.LENGTH_SHORT).show();
     }
 
     @Override
+    @DebugLog
     public void onThermostatClick(final int idx) {
         addDebugText("onThermostatClick");
         final UtilitiesInfo tempUtil = getUtility(idx);
@@ -336,6 +297,7 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
 
         tempDialog.onDismissListener(new TemperatureDialog.DialogActionListener() {
             @Override
+            @DebugLog
             public void onDialogAction(final double newSetPoint, DialogAction dialogAction) {
                 if (dialogAction == DialogAction.POSITIVE) {
                     addDebugText("Set idx " + idx + " to " + String.valueOf(newSetPoint));
@@ -346,8 +308,13 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
                             passwordDialog.show();
                             passwordDialog.onDismissListener(new PasswordDialog.DismissListener() {
                                 @Override
+                                @DebugLog
                                 public void onDismiss(String password) {
                                     setThermostatAction(tempUtil, newSetPoint, password);
+                                }
+
+                                @Override
+                                public void onCancel() {
                                 }
                             });
                         } else {
@@ -380,12 +347,14 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
                 password,
                 new setCommandReceiver() {
                     @Override
+                    @DebugLog
                     public void onReceiveResult(String result) {
                         updateThermostatSetPointValue(tempUtil.getIdx(), thermostatSetPointValue);
                         successHandling(result, false);
                     }
 
                     @Override
+                    @DebugLog
                     public void onError(Exception error) {
                         errorHandling(error);
                     }
@@ -394,20 +363,60 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
 
 
     @Override
+    @DebugLog
     public void onLogButtonClick(int idx) {
         mDomoticz.getTextLogs(idx, new SwitchLogReceiver() {
             @Override
+            @DebugLog
             public void onReceiveSwitches(ArrayList<SwitchLogInfo> switchesLogs) {
                 showLogDialog(switchesLogs);
             }
 
             @Override
+            @DebugLog
             public void onError(Exception error) {
-                Snackbar.make(coordinatorLayout,
-                        mContext.getString(R.string.error_logs),
-                        Snackbar.LENGTH_SHORT).show();
+                UsefulBits.showSimpleSnackbar(mContext, coordinatorLayout, R.string.error_logs, Snackbar.LENGTH_SHORT);
             }
         });
+    }
+
+    @Override
+    @DebugLog
+    public void onLikeButtonClick(int idx, boolean checked) {
+        changeFavorite(getUtility(idx), checked);
+    }
+
+    @Override
+    @DebugLog
+    public void onItemClicked(View v, int position) {
+        LinearLayout extra_panel = (LinearLayout) v.findViewById(R.id.extra_panel);
+        if (extra_panel != null) {
+            if (extra_panel.getVisibility() == View.VISIBLE) {
+                extra_panel.startAnimation(animHide);
+                extra_panel.setVisibility(View.GONE);
+            } else {
+                extra_panel.setVisibility(View.VISIBLE);
+                extra_panel.startAnimation(animShow);
+            }
+
+            if (extra_panel != lExtraPanel) {
+                if (lExtraPanel != null) {
+                    if (lExtraPanel.getVisibility() == View.VISIBLE) {
+                        lExtraPanel.startAnimation(animHide);
+                        lExtraPanel.setVisibility(View.GONE);
+                    }
+                }
+            }
+
+            lExtraPanel = extra_panel;
+        }
+    }
+
+    @Override
+    @DebugLog
+    public boolean onItemLongClicked(int position) {
+        showInfoDialog(adapter.filteredData.get(position));
+        return true;
     }
 
     private void showLogDialog(ArrayList<SwitchLogInfo> switchLogs) {
@@ -419,6 +428,44 @@ public class Utilities extends DomoticzFragment implements DomoticzFragmentListe
                     switchLogs,
                     R.layout.dialog_switch_logs);
             infoDialog.show();
+        }
+    }
+
+    private class GetCachedDataTask extends AsyncTask<Boolean, Boolean, Boolean> {
+        ArrayList<UtilitiesInfo> cacheUtilities = null;
+
+        protected Boolean doInBackground(Boolean... geto) {
+            if (!mPhoneConnectionUtil.isNetworkAvailable()) {
+                try {
+                    cacheUtilities = (ArrayList<UtilitiesInfo>) SerializableManager.readSerializedObject(mContext, "Utilities");
+                    Utilities.this.mUtilitiesInfos = cacheUtilities;
+                } catch (Exception ex) {
+                }
+            }
+            return true;
+        }
+
+        protected void onPostExecute(Boolean result) {
+            if (cacheUtilities != null)
+                createListView();
+
+            mDomoticz.getUtilities(new UtilitiesReceiver() {
+                @Override
+                @DebugLog
+                public void onReceiveUtilities(ArrayList<UtilitiesInfo> mUtilitiesInfos) {
+                    successHandling(mUtilitiesInfos.toString(), false);
+                    SerializableManager.saveSerializable(mContext, mUtilitiesInfos, "Utilities");
+                    Utilities.this.mUtilitiesInfos = mUtilitiesInfos;
+
+                    createListView();
+                }
+
+                @Override
+                @DebugLog
+                public void onError(Exception error) {
+                    errorHandling(error);
+                }
+            });
         }
     }
 }

@@ -57,7 +57,9 @@ import java.util.Set;
 import nl.hnogames.domoticz.Containers.Language;
 import nl.hnogames.domoticz.Containers.LocationInfo;
 import nl.hnogames.domoticz.Containers.NFCInfo;
+import nl.hnogames.domoticz.Containers.QRCodeInfo;
 import nl.hnogames.domoticz.Containers.ServerUpdateInfo;
+import nl.hnogames.domoticz.Containers.SpeechInfo;
 import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Interfaces.LanguageReceiver;
 import nl.hnogames.domoticz.R;
@@ -77,13 +79,18 @@ public class SharedPrefUtil {
     private static final String PREF_SAVED_LANGUAGE = "savedLanguage";
     private static final String PREF_SAVED_LANGUAGE_DATE = "savedLanguageDate";
     private static final String PREF_UPDATE_SERVER_AVAILABLE = "updateserveravailable";
+    private static final String PREF_UPDATE_SERVER_SHOWN = "updateservershown";
     private static final String PREF_EXTRA_DATA = "extradata";
     private static final String PREF_STARTUP_SCREEN = "startup_screen";
     private static final String PREF_TASK_SCHEDULED = "task_scheduled";
     private static final String PREF_NAVIGATION_ITEMS = "enable_menu_items";
     private static final String PREF_NFC_TAGS = "nfc_tags";
+    private static final String PREF_QR_CODES = "qr_codes";
+    private static final String PREF_SPEECH_COMMANDS = "speech_commands";
     private static final String PREF_GEOFENCE_LOCATIONS = "geofence_locations";
     private static final String PREF_GEOFENCE_ENABLED = "geofence_enabled";
+    private static final String PREF_SPEECH_ENABLED = "enableSpeech";
+    private static final String PREF_QRCODE_ENABLED = "enableQRCode";
     private static final String PREF_GEOFENCE_STARTED = "geofence_started";
     private static final String PREF_ADVANCED_SETTINGS_ENABLED = "advanced_settings_enabled";
     private static final String PREF_DEBUGGING = "debugging";
@@ -96,8 +103,17 @@ public class SharedPrefUtil {
     private static final String PREF_SUPPRESS_NOTIFICATIONS = "suppressNotifications";
     private static final String PREF_RECEIVED_NOTIFICATIONS = "receivedNotifications";
     private static final String PREF_CHECK_UPDATES = "checkForSystemUpdates";
+    private static final String PREF_LAST_VERSION = "lastappversion";
+    private static final String PREF_APK_VALIDATED = "apkvalidated";
+
     private final String TAG = "Shared Pref util";
+    @SuppressWarnings("FieldCanBeLocal")
     private final String PREF_SORT_LIKESERVER = "sort_dashboardLikeServer";
+    @SuppressWarnings("FieldCanBeLocal")
+    private final String PREF_DARK_THEME = "darkTheme";
+    private final String PREF_SWITCH_BUTTONS = "switchButtons";
+    @SuppressWarnings("FieldCanBeLocal")
+    private final String PREF_DASHBOARD_LIST = "dashboardAsList";
 
     private Context mContext;
     private SharedPreferences prefs;
@@ -109,6 +125,18 @@ public class SharedPrefUtil {
         this.mContext = mContext;
         prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
         editor = prefs.edit();
+    }
+
+    public boolean darkThemeEnabled() {
+        return prefs.getBoolean(PREF_DARK_THEME, false);
+    }
+
+    public boolean showDashboardAsList() {
+        return prefs.getBoolean(PREF_DASHBOARD_LIST, true);
+    }
+
+    public boolean showSwitchesAsButtons() {
+        return prefs.getBoolean(PREF_SWITCH_BUTTONS, false);
     }
 
     public boolean checkForUpdatesEnabled() {
@@ -436,7 +464,7 @@ public class SharedPrefUtil {
         editor.putStringSet(PREF_NAVIGATION_ITEMS, selections).apply();
     }
 
-    public int[] getNavigationIcons() {
+    public String[] getNavigationIcons() {
         if (!prefs.contains(PREF_NAVIGATION_ITEMS)) setNavigationDefaults();
 
         TypedArray icons = mContext.getResources().obtainTypedArray(R.array.drawer_icons);
@@ -444,14 +472,13 @@ public class SharedPrefUtil {
         String[] allNames = mContext.getResources().getStringArray(R.array.drawer_actions);
 
         if (selections != null) {
-
-            int[] selectedICONS = new int[selections.size()];
+            String[] selectedICONS = new String[selections.size()];
             int iconIndex = 0;
             int index = 0;
             for (String v : allNames) {
                 for (String s : selections) {
                     if (s.equals(v)) {
-                        selectedICONS[iconIndex] = icons.getResourceId(index, 0);
+                        selectedICONS[iconIndex] = icons.getString(index);
                         iconIndex++;
                     }
                 }
@@ -493,12 +520,49 @@ public class SharedPrefUtil {
         return prefs.getBoolean(PREF_UPDATE_SERVER_AVAILABLE, false);
     }
 
+    public String getPreviousVersionNumber() {
+        return prefs.getString(PREF_LAST_VERSION, "");
+    }
+
+    public void setVersionNumber(String version) {
+        editor.putString(PREF_LAST_VERSION, version);
+        editor.commit();
+    }
+
+    public String getLastUpdateShown() {
+        return prefs.getString(PREF_UPDATE_SERVER_SHOWN, "");
+    }
+
+    public void setLastUpdateShown(String revisionNb) {
+        editor.putString(PREF_UPDATE_SERVER_SHOWN, revisionNb);
+        editor.commit();
+    }
+
+
     public boolean isGeofenceEnabled() {
         return prefs.getBoolean(PREF_GEOFENCE_ENABLED, false);
     }
 
     public void setGeofenceEnabled(boolean enabled) {
         editor.putBoolean(PREF_GEOFENCE_ENABLED, enabled).apply();
+    }
+
+
+    public boolean isAPKValidated() {
+        return prefs.getBoolean(PREF_APK_VALIDATED, true);
+    }
+
+    public void setAPKValidated(boolean valid) {
+        editor.putBoolean(PREF_APK_VALIDATED, valid).apply();
+    }
+
+
+    public boolean isQRCodeEnabled() {
+        return prefs.getBoolean(PREF_QRCODE_ENABLED, false);
+    }
+
+    public boolean isSpeechEnabled() {
+        return prefs.getBoolean(PREF_SPEECH_ENABLED, false);
     }
 
     public void saveNFCList(List<NFCInfo> list) {
@@ -517,6 +581,54 @@ public class SharedPrefUtil {
                     NFCInfo[].class);
             nfcs = Arrays.asList(item);
             for (NFCInfo n : nfcs) {
+                oReturnValue.add(n);
+            }
+        } else
+            return null;
+
+        return oReturnValue;
+    }
+
+    public void saveQRCodeList(List<QRCodeInfo> list) {
+        Gson gson = new Gson();
+        editor.putString(PREF_QR_CODES, gson.toJson(list));
+        editor.commit();
+    }
+
+    public ArrayList<QRCodeInfo> getQRCodeList() {
+        ArrayList<QRCodeInfo> oReturnValue = new ArrayList<>();
+        List<QRCodeInfo> qrs;
+        if (prefs.contains(PREF_QR_CODES)) {
+            String jsonNFCs = prefs.getString(PREF_QR_CODES, null);
+            Gson gson = new Gson();
+            QRCodeInfo[] item = gson.fromJson(jsonNFCs,
+                    QRCodeInfo[].class);
+            qrs = Arrays.asList(item);
+            for (QRCodeInfo n : qrs) {
+                oReturnValue.add(n);
+            }
+        } else
+            return null;
+
+        return oReturnValue;
+    }
+
+    public void saveSpeechList(List<SpeechInfo> list) {
+        Gson gson = new Gson();
+        editor.putString(PREF_SPEECH_COMMANDS, gson.toJson(list));
+        editor.commit();
+    }
+
+    public ArrayList<SpeechInfo> getSpeechList() {
+        ArrayList<SpeechInfo> oReturnValue = new ArrayList<>();
+        List<SpeechInfo> qrs;
+        if (prefs.contains(PREF_SPEECH_COMMANDS)) {
+            String jsonNFCs = prefs.getString(PREF_SPEECH_COMMANDS, null);
+            Gson gson = new Gson();
+            SpeechInfo[] item = gson.fromJson(jsonNFCs,
+                    SpeechInfo[].class);
+            qrs = Arrays.asList(item);
+            for (SpeechInfo n : qrs) {
                 oReturnValue.add(n);
             }
         } else
@@ -615,7 +727,7 @@ public class SharedPrefUtil {
     public boolean saveSharedPreferencesToFile(File dst) {
         boolean isServerUpdateAvailableValue = false;
 
-        ServerUpdateInfo mServerUpdateInfo = new ServerUtil(mContext).getActiveServer().getServerUpdateInfo();
+        ServerUpdateInfo mServerUpdateInfo = new ServerUtil(mContext).getActiveServer().getServerUpdateInfo(mContext);
 
         // Before saving to file set server update available preference to false
         if (isServerUpdateAvailable()) {
@@ -623,9 +735,9 @@ public class SharedPrefUtil {
             mServerUpdateInfo.setUpdateAvailable(false);
         }
 
-        boolean result = false;
-
-        if (dst.exists()) result = dst.delete();
+        boolean result = true;
+        if (dst.exists())
+            result = dst.delete();
 
         if (result) {
             ObjectOutputStream output = null;

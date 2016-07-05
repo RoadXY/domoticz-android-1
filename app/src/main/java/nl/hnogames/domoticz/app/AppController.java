@@ -26,6 +26,7 @@ import android.app.Application;
 import android.content.Context;
 import android.os.Bundle;
 import android.support.multidex.MultiDex;
+import android.support.multidex.MultiDexApplication;
 import android.util.Log;
 
 import com.android.volley.DefaultRetryPolicy;
@@ -58,7 +59,7 @@ import nl.hnogames.domoticz.Utils.NotificationUtil;
 import nl.hnogames.domoticz.Utils.PermissionsUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
 
-public class AppController extends Application implements GcmListener {
+public class AppController extends MultiDexApplication implements GcmListener {
 
     public static final String TAG = AppController.class.getSimpleName();
     private static AppController mInstance;
@@ -74,8 +75,9 @@ public class AppController extends Application implements GcmListener {
     public void onCreate() {
         super.onCreate();
 
-        if (!BuildConfig.DEBUG && !UsefulBits.isEmpty(getString(R.string.mintapikey)))
+        if (!BuildConfig.DEBUG && !UsefulBits.isEmpty(getString(R.string.mintapikey))) {
             Mint.initAndStartSession(this, getString(R.string.mintapikey));
+        }
         if (PermissionsUtil.canAccessDeviceState(this))
             StartEasyGCM();
 

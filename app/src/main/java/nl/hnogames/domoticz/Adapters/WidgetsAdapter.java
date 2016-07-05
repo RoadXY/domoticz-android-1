@@ -45,6 +45,8 @@ import nl.hnogames.domoticz.R;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 
 public class WidgetsAdapter extends BaseAdapter implements Filterable {
+    private final int iVoiceAction = -55;
+    private final int iQRCodeAction = -66;
     public ArrayList<DevicesInfo> filteredData = null;
     private Domoticz domoticz;
     private Context context;
@@ -68,6 +70,7 @@ public class WidgetsAdapter extends BaseAdapter implements Filterable {
                 return left.getName().compareTo(right.getName());
             }
         });
+
         this.filteredData = data;
         this.data = data;
     }
@@ -100,6 +103,10 @@ public class WidgetsAdapter extends BaseAdapter implements Filterable {
         convertView = setDefaultRowId(holder);
         convertView.setTag(holder);
 
+        if (mSharedPrefs.darkThemeEnabled()) {
+            (convertView.findViewById(R.id.row_global_wrapper)).setBackgroundColor(context.getResources().getColor(R.color.background_dark));
+        }
+
         setDefaultRowData(deviceInfo, holder);
         return convertView;
     }
@@ -124,30 +131,39 @@ public class WidgetsAdapter extends BaseAdapter implements Filterable {
         if (holder.switch_name != null)
             holder.switch_name.setText(mDeviceInfo.getName());
 
-        String text = context.getString(R.string.last_update) + ": " +
-                String.valueOf(mDeviceInfo.getLastUpdate().substring(mDeviceInfo.getLastUpdate().indexOf(" ") + 1));
-        if (holder.signal_level != null)
-            holder.signal_level.setText(text);
+        try {
+            String text = context.getString(R.string.last_update) + ": " +
+                    String.valueOf(mDeviceInfo.getLastUpdate().substring(mDeviceInfo.getLastUpdate().indexOf(" ") + 1));
+            if (holder.signal_level != null)
+                holder.signal_level.setText(text);
+            text = context.getString(R.string.data) + ": " +
+                    String.valueOf(mDeviceInfo.getData());
+            if (holder.switch_battery_level != null)
+                holder.switch_battery_level.setText(text);
+            if (mDeviceInfo.getUsage() != null && mDeviceInfo.getUsage().length() > 0)
+                holder.switch_battery_level.setText(context.getString(R.string.usage) + ": " + mDeviceInfo.getUsage());
+            if (mDeviceInfo.getCounterToday() != null && mDeviceInfo.getCounterToday().length() > 0)
+                holder.switch_battery_level.append(" " + context.getString(R.string.today) + ": " + mDeviceInfo.getCounterToday());
+            if (mDeviceInfo.getCounter() != null && mDeviceInfo.getCounter().length() > 0 &&
+                    !mDeviceInfo.getCounter().equals(mDeviceInfo.getData()))
+                holder.switch_battery_level.append(" " + context.getString(R.string.total) + ": " + mDeviceInfo.getCounter());
+        } catch (Exception ex) {
+            holder.switch_battery_level.setText("");
+            holder.switch_battery_level.setVisibility(View.GONE);
+        }
 
-        text = context.getString(R.string.data) + ": " +
-                String.valueOf(mDeviceInfo.getData());
-        if (holder.switch_battery_level != null)
-            holder.switch_battery_level.setText(text);
-
-        if (mDeviceInfo.getUsage() != null && mDeviceInfo.getUsage().length() > 0)
-            holder.switch_battery_level.setText(context.getString(R.string.usage) + ": " + mDeviceInfo.getUsage());
-        if (mDeviceInfo.getCounterToday() != null && mDeviceInfo.getCounterToday().length() > 0)
-            holder.switch_battery_level.append(" " + context.getString(R.string.today) + ": " + mDeviceInfo.getCounterToday());
-        if (mDeviceInfo.getCounter() != null && mDeviceInfo.getCounter().length() > 0 &&
-                !mDeviceInfo.getCounter().equals(mDeviceInfo.getData()))
-            holder.switch_battery_level.append(" " + context.getString(R.string.total) + ": " + mDeviceInfo.getCounter());
-
-        Picasso.with(context).load(domoticz.getDrawableIcon(mDeviceInfo.getTypeImg(),
-                mDeviceInfo.getType(),
-                mDeviceInfo.getSubType(),
-                mDeviceInfo.getStatusBoolean(),
-                mDeviceInfo.getUseCustomImage(),
-                mDeviceInfo.getImage())).into(holder.iconRow);
+        if (mDeviceInfo.getIdx() == iVoiceAction) {
+            Picasso.with(context).load(R.drawable.mic).into(holder.iconRow);
+        } else if (mDeviceInfo.getIdx() == iQRCodeAction) {
+            Picasso.with(context).load(R.drawable.qrcode).into(holder.iconRow);
+        } else {
+            Picasso.with(context).load(domoticz.getDrawableIcon(mDeviceInfo.getTypeImg(),
+                    mDeviceInfo.getType(),
+                    mDeviceInfo.getSubType(),
+                    mDeviceInfo.getStatusBoolean(),
+                    mDeviceInfo.getUseCustomImage(),
+                    mDeviceInfo.getImage())).into(holder.iconRow);
+        }
 
         holder.iconRow.setAlpha(1f);
         if (!mDeviceInfo.getStatusBoolean())

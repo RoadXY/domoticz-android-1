@@ -2,19 +2,19 @@ package nl.hnogames.domoticz.Fragments;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.AsyncTask;
 import android.support.design.widget.Snackbar;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.view.View;
 import android.view.animation.Animation;
-import android.widget.AdapterView;
 import android.widget.LinearLayout;
-
-import com.nhaarman.listviewanimations.appearance.simple.SwingBottomInAnimationAdapter;
 
 import org.json.JSONObject;
 
 import java.util.ArrayList;
 
+import hugo.weaving.DebugLog;
+import jp.wasabeef.recyclerview.adapters.SlideInBottomAnimationAdapter;
 import nl.hnogames.domoticz.Adapters.WeatherAdapter;
 import nl.hnogames.domoticz.Containers.Language;
 import nl.hnogames.domoticz.Containers.WeatherInfo;
@@ -27,10 +27,12 @@ import nl.hnogames.domoticz.Interfaces.setCommandReceiver;
 import nl.hnogames.domoticz.R;
 import nl.hnogames.domoticz.UI.WeatherInfoDialog;
 import nl.hnogames.domoticz.Utils.AnimationUtil;
+import nl.hnogames.domoticz.Utils.SerializableManager;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
-import nl.hnogames.domoticz.app.DomoticzFragment;
+import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticz.app.DomoticzRecyclerFragment;
 
-public class Weather extends DomoticzFragment implements DomoticzFragmentListener, WeatherClickListener {
+public class Weather extends DomoticzRecyclerFragment implements DomoticzFragmentListener, WeatherClickListener {
 
     @SuppressWarnings("unused")
     private static final String TAG = Weather.class.getSimpleName();
@@ -39,8 +41,17 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     private String filter = "";
     private LinearLayout lExtraPanel = null;
     private Animation animShow, animHide;
+    private ArrayList<WeatherInfo> mWeatherInfoList;
+    private SlideInBottomAnimationAdapter alphaSlideIn;
+
 
     @Override
+    public void onConnectionFailed() {
+        new GetCachedDataTask().execute();
+    }
+
+    @Override
+    @DebugLog
     public void refreshFragment() {
         if (mSwipeRefreshLayout != null)
             mSwipeRefreshLayout.setRefreshing(true);
@@ -48,14 +59,17 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     }
 
     @Override
+    @DebugLog
     public void onAttach(Context context) {
         super.onAttach(context);
         mContext = context;
-        getActionBar().setTitle(R.string.title_weather);
+        if (getActionBar() != null)
+            getActionBar().setTitle(R.string.title_weather);
         initAnimation();
     }
 
     @Override
+    @DebugLog
     public void Filter(String text) {
         filter = text;
         try {
@@ -68,6 +82,7 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     }
 
     @Override
+    @DebugLog
     public void onConnectionOk() {
         super.showSpinner(true);
         processWeather();
@@ -76,21 +91,8 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     private void processWeather() {
         if (mSwipeRefreshLayout != null)
             mSwipeRefreshLayout.setRefreshing(true);
-        mDomoticz.getWeathers(new WeatherReceiver() {
 
-            @Override
-            public void onReceiveWeather(ArrayList<WeatherInfo> mWeatherInfos) {
-                if (getView() != null) {
-                    successHandling(mWeatherInfos.toString(), false);
-                    createListView(mWeatherInfos);
-                }
-            }
-
-            @Override
-            public void onError(Exception error) {
-                errorHandling(error);
-            }
-        });
+        new GetCachedDataTask().execute();
     }
 
     private void initAnimation() {
@@ -99,49 +101,20 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     }
 
     private void createListView(ArrayList<WeatherInfo> mWeatherInfos) {
-        adapter = new WeatherAdapter(mContext, mDomoticz, getServerUtil(), mWeatherInfos, this);
-        SwingBottomInAnimationAdapter animationAdapter = new SwingBottomInAnimationAdapter(adapter);
-        animationAdapter.setAbsListView(listView);
-        listView.setAdapter(animationAdapter);
-
-        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> adapterView, View view,
-                                           int index, long id) {
-                showInfoDialog(adapter.filteredData.get(index));
-                return true;
-            }
-        });
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
-                LinearLayout extra_panel = (LinearLayout) v.findViewById(R.id.extra_panel);
-                if (extra_panel != null) {
-                    if (extra_panel.getVisibility() == View.VISIBLE) {
-                        extra_panel.startAnimation(animHide);
-                        extra_panel.setVisibility(View.GONE);
-                    } else {
-                        extra_panel.setVisibility(View.VISIBLE);
-                        extra_panel.startAnimation(animShow);
-                    }
-
-                    if (extra_panel != lExtraPanel) {
-                        if (lExtraPanel != null) {
-                            if (lExtraPanel.getVisibility() == View.VISIBLE) {
-                                lExtraPanel.startAnimation(animHide);
-                                lExtraPanel.setVisibility(View.GONE);
-                            }
-                        }
-                    }
-
-                    lExtraPanel = extra_panel;
-                }
-            }
-        });
+        if (adapter == null) {
+            adapter = new WeatherAdapter(mContext, mDomoticz, getServerUtil(), mWeatherInfos, this);
+            alphaSlideIn = new SlideInBottomAnimationAdapter(adapter);
+            gridView.setAdapter(alphaSlideIn);
+        } else {
+            adapter.setData(mWeatherInfos);
+            adapter.notifyDataSetChanged();
+            alphaSlideIn.notifyDataSetChanged();
+        }
 
         mSwipeRefreshLayout.setRefreshing(false);
         mSwipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
+            @DebugLog
             public void onRefresh() {
                 processWeather();
             }
@@ -159,6 +132,7 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
         infoDialog.show();
         infoDialog.onDismissListener(new WeatherInfoDialog.DismissListener() {
             @Override
+            @DebugLog
             public void onDismiss(boolean isChanged, boolean isFavorite) {
                 if (isChanged)
                     changeFavorite(mWeatherInfo, isFavorite);
@@ -171,17 +145,9 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
         addDebugText("Set idx " + mWeatherInfo.getIdx() + " favorite to " + isFavorite);
 
         if (isFavorite)
-            Snackbar.make(coordinatorLayout,
-                    mWeatherInfo.getName()
-                            + " "
-                            + mContext.getString(R.string.favorite_added),
-                    Snackbar.LENGTH_SHORT).show();
+            UsefulBits.showSimpleSnackbar(mContext, coordinatorLayout, mWeatherInfo.getName() + " " + mContext.getString(R.string.favorite_added), Snackbar.LENGTH_SHORT);
         else
-            Snackbar.make(coordinatorLayout,
-                    mWeatherInfo.getName()
-                            + " "
-                            + mContext.getString(R.string.favorite_removed),
-                    Snackbar.LENGTH_SHORT).show();
+            UsefulBits.showSimpleSnackbar(mContext, coordinatorLayout, mWeatherInfo.getName() + " " + mContext.getString(R.string.favorite_removed), Snackbar.LENGTH_SHORT);
 
         int jsonAction;
         int jsonUrl = Domoticz.Json.Url.Set.FAVORITE;
@@ -196,12 +162,14 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
                 null,
                 new setCommandReceiver() {
                     @Override
+                    @DebugLog
                     public void onReceiveResult(String result) {
                         successHandling(result, false);
                         mWeatherInfo.setFavoriteBoolean(isFavorite);
                     }
 
                     @Override
+                    @DebugLog
                     public void onError(Exception error) {
                         errorHandling(error);
                     }
@@ -209,6 +177,7 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     }
 
     @Override
+    @DebugLog
     public void errorHandling(Exception error) {
         if (error != null) {
             // Let's check if were still attached to an activity
@@ -219,11 +188,13 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
     }
 
     @Override
+    @DebugLog
     public void onPause() {
         super.onPause();
     }
 
     @Override
+    @DebugLog
     public void onLogClick(final WeatherInfo weather, final String range) {
         final String graphType = weather.getTypeImg()
                 .toLowerCase()
@@ -247,5 +218,93 @@ public class Weather extends DomoticzFragment implements DomoticzFragmentListene
         intent.putExtra("TITLE", graphDialogTitle.toUpperCase());
         intent.putExtra("STEPS", 4);
         startActivity(intent);
+    }
+
+    @Override
+    @DebugLog
+    public void onLikeButtonClick(int idx, boolean checked) {
+        changeFavorite(getWeather(idx), checked);
+    }
+
+    @Override
+    @DebugLog
+    public void onItemClicked(View v, int position) {
+        LinearLayout extra_panel = (LinearLayout) v.findViewById(R.id.extra_panel);
+        if (extra_panel != null) {
+            if (extra_panel.getVisibility() == View.VISIBLE) {
+                extra_panel.startAnimation(animHide);
+                extra_panel.setVisibility(View.GONE);
+            } else {
+                extra_panel.setVisibility(View.VISIBLE);
+                extra_panel.startAnimation(animShow);
+            }
+
+            if (extra_panel != lExtraPanel) {
+                if (lExtraPanel != null) {
+                    if (lExtraPanel.getVisibility() == View.VISIBLE) {
+                        lExtraPanel.startAnimation(animHide);
+                        lExtraPanel.setVisibility(View.GONE);
+                    }
+                }
+            }
+
+            lExtraPanel = extra_panel;
+        }
+    }
+
+    @Override
+    @DebugLog
+    public boolean onItemLongClicked(int position) {
+        showInfoDialog(adapter.filteredData.get(position));
+        return true;
+    }
+
+    private WeatherInfo getWeather(int idx) {
+        WeatherInfo clickedWeather = null;
+        for (WeatherInfo mWeatherInfo : mWeatherInfoList) {
+            if (mWeatherInfo.getIdx() == idx) {
+                clickedWeather = mWeatherInfo;
+            }
+        }
+        return clickedWeather;
+    }
+
+
+    private class GetCachedDataTask extends AsyncTask<Boolean, Boolean, Boolean> {
+        ArrayList<WeatherInfo> cacheWeathers = null;
+
+        protected Boolean doInBackground(Boolean... geto) {
+            if (!mPhoneConnectionUtil.isNetworkAvailable()) {
+                try {
+                    cacheWeathers = (ArrayList<WeatherInfo>) SerializableManager.readSerializedObject(mContext, "Weathers");
+                } catch (Exception ex) {
+                }
+            }
+            return true;
+        }
+
+        protected void onPostExecute(Boolean result) {
+            if (cacheWeathers != null)
+                createListView(cacheWeathers);
+
+            mDomoticz.getWeathers(new WeatherReceiver() {
+                @Override
+                @DebugLog
+                public void onReceiveWeather(ArrayList<WeatherInfo> mWeatherInfos) {
+                    mWeatherInfoList = mWeatherInfos;
+                    if (getView() != null) {
+                        successHandling(mWeatherInfos.toString(), false);
+                        SerializableManager.saveSerializable(mContext, mWeatherInfos, "Weathers");
+                        createListView(mWeatherInfos);
+                    }
+                }
+
+                @Override
+                @DebugLog
+                public void onError(Exception error) {
+                    errorHandling(error);
+                }
+            });
+        }
     }
 }

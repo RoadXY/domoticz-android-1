@@ -51,6 +51,10 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.afollestad.digitus.Digitus;
+import com.afollestad.digitus.DigitusCallback;
+import com.afollestad.digitus.DigitusErrorType;
+import com.afollestad.digitus.FingerprintDialog;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.github.zagum.speechrecognitionview.RecognitionProgressView;
 import com.github.zagum.speechrecognitionview.adapters.RecognitionListenerAdapter;
@@ -75,34 +79,18 @@ import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import androidmads.updatehandler.app.UpdateHandler;
 import hotchemi.android.rate.AppRate;
 import hugo.weaving.DebugLog;
-import nl.hnogames.domoticz.Containers.ConfigInfo;
-import nl.hnogames.domoticz.Containers.ExtendedStatusInfo;
 import nl.hnogames.domoticz.Containers.QRCodeInfo;
-import nl.hnogames.domoticz.Containers.ServerInfo;
-import nl.hnogames.domoticz.Containers.ServerUpdateInfo;
 import nl.hnogames.domoticz.Containers.SpeechInfo;
-import nl.hnogames.domoticz.Containers.SwitchInfo;
-import nl.hnogames.domoticz.Containers.UserInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Fragments.Cameras;
-import nl.hnogames.domoticz.Fragments.Changelog;
 import nl.hnogames.domoticz.Fragments.Dashboard;
 import nl.hnogames.domoticz.Fragments.Scenes;
 import nl.hnogames.domoticz.Fragments.Switches;
-import nl.hnogames.domoticz.Interfaces.ConfigReceiver;
-import nl.hnogames.domoticz.Interfaces.StatusReceiver;
-import nl.hnogames.domoticz.Interfaces.SwitchesReceiver;
-import nl.hnogames.domoticz.Interfaces.UpdateVersionReceiver;
-import nl.hnogames.domoticz.Interfaces.VersionReceiver;
-import nl.hnogames.domoticz.Interfaces.setCommandReceiver;
 import nl.hnogames.domoticz.UI.PasswordDialog;
 import nl.hnogames.domoticz.UI.SortDialog;
 import nl.hnogames.domoticz.Utils.PermissionsUtil;
 import nl.hnogames.domoticz.Utils.SerializableManager;
-import nl.hnogames.domoticz.Utils.ServerUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.TalkBackUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
@@ -112,10 +100,23 @@ import nl.hnogames.domoticz.app.AppController;
 import nl.hnogames.domoticz.app.DomoticzCardFragment;
 import nl.hnogames.domoticz.app.DomoticzDashboardFragment;
 import nl.hnogames.domoticz.app.DomoticzRecyclerFragment;
+import nl.hnogames.domoticzapi.Containers.ConfigInfo;
+import nl.hnogames.domoticzapi.Containers.DevicesInfo;
+import nl.hnogames.domoticzapi.Containers.ServerInfo;
+import nl.hnogames.domoticzapi.Containers.ServerUpdateInfo;
+import nl.hnogames.domoticzapi.Containers.UserInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.DomoticzValues;
+import nl.hnogames.domoticzapi.Interfaces.ConfigReceiver;
+import nl.hnogames.domoticzapi.Interfaces.DevicesReceiver;
+import nl.hnogames.domoticzapi.Interfaces.UpdateVersionReceiver;
+import nl.hnogames.domoticzapi.Interfaces.VersionReceiver;
+import nl.hnogames.domoticzapi.Interfaces.setCommandReceiver;
+import nl.hnogames.domoticzapi.Utils.ServerUtil;
 
 
 @DebugLog
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements DigitusCallback, FingerprintDialog.Callback {
     private static TalkBackUtil oTalkBackUtil;
     private final int iQRResultCode = 775;
     private final int iWelcomeResultCode = 885;
@@ -139,6 +140,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean fromVoiceWidget = false;
     private boolean fromQRCodeWidget = false;
     private MenuItem speechMenuItem;
+    private boolean validateOnce = true;
 
     @DebugLog
     public ServerUtil getServerUtil() {
@@ -152,7 +154,8 @@ public class MainActivity extends AppCompatActivity {
         mSharedPrefs = new SharedPrefUtil(this);
         if (mSharedPrefs.darkThemeEnabled())
             setTheme(R.style.AppThemeDarkMain);
-
+        else
+            setTheme(R.style.AppThemeMain);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_newmain);
         UsefulBits.checkAPK(this, mSharedPrefs);
@@ -177,13 +180,20 @@ public class MainActivity extends AppCompatActivity {
             startActivityForResult(welcomeWizard, iWelcomeResultCode);
             mSharedPrefs.setFirstStart(false);
         } else {
-            // Only start Geofences when not started
-            // Geofences are already started on device boot up by the BootUpReceiver
-            if (!mSharedPrefs.isGeofencingStarted()) {
-                mSharedPrefs.setGeofencingStarted(true);
-                mSharedPrefs.enableGeoFenceService();
+            if (mSharedPrefs.isStartupSecurityEnabled()) {
+                Digitus.init(this,
+                        getString(R.string.app_name),
+                        69,
+                        this);
+            } else {
+                // Only start Geofences when not started
+                // Geofences are already started on device boot up by the BootUpReceiver
+                if (!mSharedPrefs.isGeofencingStarted()) {
+                    mSharedPrefs.setGeofencingStarted(true);
+                    mSharedPrefs.enableGeoFenceService();
+                }
+                buildScreen();
             }
-            buildScreen();
         }
     }
 
@@ -215,7 +225,6 @@ public class MainActivity extends AppCompatActivity {
         Talk(this.getString(message));
     }
 
-
     @DebugLog
     public void buildScreen() {
         if (mSharedPrefs.isWelcomeWizardSuccess()) {
@@ -229,36 +238,46 @@ public class MainActivity extends AppCompatActivity {
             initTalkBack();
 
             mServerUtil = new ServerUtil(this);
-            domoticz = new Domoticz(this, mServerUtil);
+            if (mServerUtil.getActiveServer() != null && UsefulBits.isEmpty(mServerUtil.getActiveServer().getRemoteServerUrl())) {
+                Toast.makeText(this, "Incorrect settings detected, please reconfigure this app.", Toast.LENGTH_LONG).show();
 
-            if (!fromVoiceWidget && !fromQRCodeWidget) {
-                setupMobileDevice();
-                checkDomoticzServerUpdate();
-                setScheduledTasks();
-
-                WidgetUtils.RefreshWidgets(this);
-                UsefulBits.checkDownloadedLanguage(this, mServerUtil, false, false);
-                AppController.getInstance().resendRegistrationIdToBackend();
-
-                UsefulBits.getServerConfigForActiveServer(this, false, new ConfigReceiver() {
-                    @Override
-                    @DebugLog
-                    public void onReceiveConfig(ConfigInfo settings) {
-                        drawNavigationMenu(settings);
-                        addFragment();
-                        openDialogFragment(new Changelog());
-                    }
-
-                    @Override
-                    @DebugLog
-                    public void onError(Exception error) {
-                        drawNavigationMenu(null);
-                        addFragment();
-                        openDialogFragment(new Changelog());
-                    }
-                }, mServerUtil.getActiveServer().getConfigInfo(this));
+                //incorrect settings detected
+                mSharedPrefs.setNavigationDefaults();
+                Intent welcomeWizard = new Intent(this, WelcomeViewActivity.class);
+                startActivityForResult(welcomeWizard, iWelcomeResultCode);
+                mSharedPrefs.setFirstStart(false);
             } else {
-                addFragment();
+                if (domoticz == null)
+                    domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
+
+                if (!fromVoiceWidget && !fromQRCodeWidget) {
+                    setupMobileDevice();
+                    checkDomoticzServerUpdate();
+                    setScheduledTasks();
+
+                    WidgetUtils.RefreshWidgets(this);
+                    UsefulBits.checkDownloadedLanguage(this, mServerUtil, false, false);
+                    AppController.getInstance().resendRegistrationIdToBackend();
+                    drawNavigationMenu(null);
+
+                    UsefulBits.getServerConfigForActiveServer(this, false, new ConfigReceiver() {
+                        @Override
+                        @DebugLog
+                        public void onReceiveConfig(ConfigInfo settings) {
+                            drawNavigationMenu(settings);
+                            addFragment();
+                        }
+
+                        @Override
+                        @DebugLog
+                        public void onError(Exception error) {
+                            //drawNavigationMenu(null);
+                            addFragment();
+                        }
+                    }, mServerUtil.getActiveServer().getConfigInfo(this));
+                } else {
+                    addFragment();
+                }
             }
         } else {
             Intent welcomeWizard = new Intent(this, WelcomeViewActivity.class);
@@ -278,6 +297,8 @@ public class MainActivity extends AppCompatActivity {
                     else {
                         if (mSharedPrefs.darkThemeEnabled())
                             setTheme(R.style.AppThemeDarkMain);
+                        else
+                            setTheme(R.style.AppThemeMain);
                         buildScreen();
                     }
                     SerializableManager.cleanAllSerializableObjects(this);
@@ -287,6 +308,8 @@ public class MainActivity extends AppCompatActivity {
                     SerializableManager.cleanAllSerializableObjects(this);
                     if (mSharedPrefs.darkThemeEnabled())
                         setTheme(R.style.AppThemeDarkMain);
+                    else
+                        setTheme(R.style.AppThemeMain);
                     this.recreate();
                     break;
                 case iQRResultCode:
@@ -295,14 +318,16 @@ public class MainActivity extends AppCompatActivity {
                         ArrayList<QRCodeInfo> qrList = mSharedPrefs.getQRCodeList();
                         QRCodeInfo foundQRCode = null;
                         Log.i(TAG, "QR Code ID Found: " + QR_ID);
+
                         if (qrList != null && qrList.size() > 0) {
                             for (QRCodeInfo n : qrList) {
                                 if (n.getId().equals(QR_ID))
                                     foundQRCode = n;
                             }
                         }
+
                         if (foundQRCode != null && foundQRCode.isEnabled()) {
-                            handleSwitch(foundQRCode.getSwitchIdx(), foundQRCode.getSwitchPassword(), -1);
+                            handleSwitch(foundQRCode.getSwitchIdx(), foundQRCode.getSwitchPassword(), -1, foundQRCode.getValue());
                             Toast.makeText(MainActivity.this, getString(R.string.qrcode) + " " + foundQRCode.getName(), Toast.LENGTH_SHORT).show();
                         } else {
                             if (foundQRCode == null)
@@ -311,107 +336,139 @@ public class MainActivity extends AppCompatActivity {
                                 Toast.makeText(MainActivity.this, getString(R.string.qr_code_disabled), Toast.LENGTH_SHORT).show();
                         }
                     }
+
                     break;
             }
         } else if (resultCode == 789) {
             //reload settings
             startActivityForResult(new Intent(this, SettingsActivity.class), iSettingsResultCode);
             SerializableManager.cleanAllSerializableObjects(this);
+        } else {
+            switch (requestCode) {
+                case iWelcomeResultCode:
+                    this.finish();
+                    break;
+            }
         }
 
         if (fromQRCodeWidget)
             this.finish();
     }
 
-    private void handleSwitch(final int idx, final String password, final int inputJSONAction) {
-        domoticz = new Domoticz(this, null);
-        domoticz.getSwitches(new SwitchesReceiver() {
-                                 @Override
-                                 @DebugLog
-                                 public void onReceiveSwitches(ArrayList<SwitchInfo> switches) {
-                                     for (SwitchInfo s : switches) {
-                                         if (s.getIdx() == idx) {
-                                             domoticz.getStatus(idx, new StatusReceiver() {
-                                                 @Override
-                                                 @DebugLog
-                                                 public void onReceiveStatus(ExtendedStatusInfo extendedStatusInfo) {
-                                                     int jsonAction;
-                                                     int jsonUrl = Domoticz.Json.Url.Set.SWITCHES;
 
-                                                     if (inputJSONAction < 0) {
-                                                         if (extendedStatusInfo.getSwitchTypeVal() == Domoticz.Device.Type.Value.BLINDS ||
-                                                                 extendedStatusInfo.getSwitchTypeVal() == Domoticz.Device.Type.Value.BLINDPERCENTAGE) {
-                                                             if (!extendedStatusInfo.getStatusBoolean())
-                                                                 jsonAction = Domoticz.Device.Switch.Action.OFF;
-                                                             else
-                                                                 jsonAction = Domoticz.Device.Switch.Action.ON;
-                                                         } else {
-                                                             if (!extendedStatusInfo.getStatusBoolean())
-                                                                 jsonAction = Domoticz.Device.Switch.Action.ON;
-                                                             else
-                                                                 jsonAction = Domoticz.Device.Switch.Action.OFF;
-                                                         }
-                                                     } else {
-                                                         if (extendedStatusInfo.getSwitchTypeVal() == Domoticz.Device.Type.Value.BLINDS ||
-                                                                 extendedStatusInfo.getSwitchTypeVal() == Domoticz.Device.Type.Value.BLINDPERCENTAGE) {
-                                                             if (inputJSONAction == 1)
-                                                                 jsonAction = Domoticz.Device.Switch.Action.OFF;
-                                                             else
-                                                                 jsonAction = Domoticz.Device.Switch.Action.ON;
-                                                         } else {
-                                                             if (inputJSONAction == 1)
-                                                                 jsonAction = Domoticz.Device.Switch.Action.ON;
-                                                             else
-                                                                 jsonAction = Domoticz.Device.Switch.Action.OFF;
-                                                         }
-                                                     }
-                                                     switch (extendedStatusInfo.getSwitchTypeVal()) {
-                                                         case Domoticz.Device.Type.Value.PUSH_ON_BUTTON:
-                                                             jsonAction = Domoticz.Device.Switch.Action.ON;
-                                                             break;
-                                                         case Domoticz.Device.Type.Value.PUSH_OFF_BUTTON:
-                                                             jsonAction = Domoticz.Device.Switch.Action.OFF;
-                                                             break;
-                                                     }
+    private void handleSwitch(final int idx, final String password, final int inputJSONAction, final String value) {
+        if (domoticz == null)
+            domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
 
-                                                     domoticz.setAction(idx, jsonUrl, jsonAction, 0, password, new setCommandReceiver() {
-                                                         @Override
-                                                         @DebugLog
-                                                         public void onReceiveResult(String result) {
-                                                             Log.d(TAG, result);
-                                                             if (fromQRCodeWidget)
-                                                                 MainActivity.this.finish();
-                                                         }
+        domoticz.getDevice(new DevicesReceiver() {
+            @Override
+            public void onReceiveDevices(ArrayList<DevicesInfo> mDevicesInfo) {
+            }
 
-                                                         @Override
-                                                         @DebugLog
-                                                         public void onError(Exception error) {
-                                                             if (fromQRCodeWidget)
-                                                                 MainActivity.this.finish();
-                                                         }
-                                                     });
-                                                 }
+            @Override
+            public void onReceiveDevice(DevicesInfo mDevicesInfo) {
+                int jsonAction;
+                int jsonUrl = DomoticzValues.Json.Url.Set.SWITCHES;
+                int jsonValue = 0;
 
-                                                 @Override
-                                                 @DebugLog
-                                                 public void onError(Exception error) {
-                                                     if (fromQRCodeWidget)
-                                                         MainActivity.this.finish();
-                                                 }
-                                             });
-                                         }
-                                     }
-                                 }
+                if (inputJSONAction < 0) {
+                    if (mDevicesInfo.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.BLINDS ||
+                            mDevicesInfo.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.BLINDPERCENTAGE) {
+                        if (!mDevicesInfo.getStatusBoolean())
+                            jsonAction = DomoticzValues.Device.Switch.Action.OFF;
+                        else {
+                            jsonAction = DomoticzValues.Device.Switch.Action.ON;
+                            if (!UsefulBits.isEmpty(value)) {
+                                jsonAction = DomoticzValues.Device.Dimmer.Action.DIM_LEVEL;
+                                jsonValue = getSelectorValue(mDevicesInfo, value);
+                            }
+                        }
+                    } else {
+                        if (!mDevicesInfo.getStatusBoolean()) {
+                            jsonAction = DomoticzValues.Device.Switch.Action.ON;
+                            if (!UsefulBits.isEmpty(value)) {
+                                jsonAction = DomoticzValues.Device.Dimmer.Action.DIM_LEVEL;
+                                jsonValue = getSelectorValue(mDevicesInfo, value);
+                            }
+                        } else
+                            jsonAction = DomoticzValues.Device.Switch.Action.OFF;
+                    }
+                } else {
+                    if (mDevicesInfo.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.BLINDS ||
+                            mDevicesInfo.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.BLINDPERCENTAGE) {
+                        if (inputJSONAction == 1)
+                            jsonAction = DomoticzValues.Device.Switch.Action.OFF;
+                        else {
+                            jsonAction = DomoticzValues.Device.Switch.Action.ON;
+                            if (!UsefulBits.isEmpty(value)) {
+                                jsonAction = DomoticzValues.Device.Dimmer.Action.DIM_LEVEL;
+                                jsonValue = getSelectorValue(mDevicesInfo, value);
+                            }
+                        }
+                    } else {
+                        if (inputJSONAction == 1) {
+                            jsonAction = DomoticzValues.Device.Switch.Action.ON;
+                            if (!UsefulBits.isEmpty(value)) {
+                                jsonAction = DomoticzValues.Device.Dimmer.Action.DIM_LEVEL;
+                                jsonValue = getSelectorValue(mDevicesInfo, value);
+                            }
+                        } else
+                            jsonAction = DomoticzValues.Device.Switch.Action.OFF;
+                    }
+                }
 
-                                 @Override
-                                 @DebugLog
-                                 public void onError(Exception error) {
-                                     if (fromQRCodeWidget)
-                                         MainActivity.this.finish();
-                                 }
-                             }
-        );
+                switch (mDevicesInfo.getSwitchTypeVal()) {
+                    case DomoticzValues.Device.Type.Value.PUSH_ON_BUTTON:
+                        jsonAction = DomoticzValues.Device.Switch.Action.ON;
+                        break;
+                    case DomoticzValues.Device.Type.Value.PUSH_OFF_BUTTON:
+                        jsonAction = DomoticzValues.Device.Switch.Action.OFF;
+                        break;
+                }
+
+                domoticz.setAction(idx, jsonUrl, jsonAction, jsonValue, password, new setCommandReceiver() {
+                    @Override
+                    @DebugLog
+                    public void onReceiveResult(String result) {
+                        Log.d(TAG, result);
+                        if (fromQRCodeWidget)
+                            MainActivity.this.finish();
+                    }
+
+                    @Override
+                    @DebugLog
+                    public void onError(Exception error) {
+                        if (fromQRCodeWidget)
+                            MainActivity.this.finish();
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception error) {
+                if (fromQRCodeWidget)
+                    MainActivity.this.finish();
+            }
+
+        }, idx, false);
     }
+
+    private int getSelectorValue(DevicesInfo mDevicesInfo, String value) {
+        int jsonValue = 0;
+        if (!UsefulBits.isEmpty(value)) {
+            String[] levelNames = mDevicesInfo.getLevelNames();
+            int counter = 10;
+            for (String l : levelNames) {
+                if (l.equals(value))
+                    break;
+                else
+                    counter += 10;
+            }
+            jsonValue = counter;
+        }
+        return jsonValue;
+    }
+
 
     @DebugLog
     public void refreshFragment() {
@@ -477,6 +534,12 @@ public class MainActivity extends AppCompatActivity {
                     startRecognition();
                 }
                 break;
+        }
+
+        try {
+            // Notify Digitus of the result
+            Digitus.get().handleResult(requestCode, permissions, grantResults);
+        } catch (Exception ex) {
         }
     }
 
@@ -561,7 +624,6 @@ public class MainActivity extends AppCompatActivity {
 
             // Show a dialog if meets conditions
             AppRate.showRateDialogIfMeetsConditions(this);
-            new UpdateHandler(this).start();
         }
     }
 
@@ -1101,12 +1163,14 @@ public class MainActivity extends AppCompatActivity {
         if (mSharedPrefs.isSpeechEnabled()) {
             ArrayList<SpeechInfo> qrList = mSharedPrefs.getSpeechList();
             SpeechInfo foundSPEECH = null;
+
             if (qrList != null && qrList.size() > 0) {
                 for (SpeechInfo n : qrList) {
                     if (n.getId().equals(SPEECH_ID))
                         foundSPEECH = n;
                 }
             }
+
             if (foundSPEECH == null) {
                 if (SPEECH_ID.endsWith(getString(R.string.button_state_off).toLowerCase())) {
                     actionFound = getString(R.string.button_state_off);
@@ -1127,7 +1191,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             if (foundSPEECH != null && foundSPEECH.isEnabled()) {
-                handleSwitch(foundSPEECH.getSwitchIdx(), foundSPEECH.getSwitchPassword(), jsonAction);
+                handleSwitch(foundSPEECH.getSwitchIdx(), foundSPEECH.getSwitchPassword(), jsonAction, foundSPEECH.getValue());
                 Toast.makeText(MainActivity.this, getString(R.string.Speech) + ": " + SPEECH_ID + " - " + actionFound, Toast.LENGTH_SHORT).show();
             } else {
                 if (foundSPEECH == null)
@@ -1280,6 +1344,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         stopCameraTimer();
+        Digitus.deinit();
         super.onDestroy();
     }
 
@@ -1351,5 +1416,80 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+
+    @Override
+    public void onDigitusReady(Digitus digitus) {
+        if (validateOnce)
+            FingerprintDialog.show(this, getString(R.string.app_name), 69, true);
+    }
+
+    @Override
+    public void onDigitusListening(boolean newFingerprint) {
+    }
+
+    @Override
+    public void onDigitusAuthenticated(Digitus digitus) {
+        digitus.deinit();
+        validateOnce = false;
+        if (!mSharedPrefs.isGeofencingStarted()) {
+            mSharedPrefs.setGeofencingStarted(true);
+            mSharedPrefs.enableGeoFenceService();
+        }
+        buildScreen();
+    }
+
+    @Override
+    public void onDigitusError(Digitus digitus, DigitusErrorType type, Exception e) {
+        this.finish();
+    }
+
+    @Override
+    public void onFingerprintDialogAuthenticated() {
+        FingerprintDialog dialog = FingerprintDialog.getVisible(this);
+        if (dialog != null)
+            dialog.dismiss();
+        Digitus.get().deinit();
+        validateOnce = false;
+        if (!mSharedPrefs.isGeofencingStarted()) {
+            mSharedPrefs.setGeofencingStarted(true);
+            mSharedPrefs.enableGeoFenceService();
+        }
+        buildScreen();
+    }
+
+    @Override
+    public void onFingerprintDialogVerifyPassword(FingerprintDialog dialog, String password) {
+        if (domoticz == null)
+            domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
+        String pw = domoticz.getUserCredentials(Domoticz.Authentication.PASSWORD);
+        if (pw.equals(password)) {
+            if (dialog != null)
+                dialog.dismiss();
+            Digitus.get().deinit();
+            validateOnce = false;
+            if (!mSharedPrefs.isGeofencingStarted()) {
+                mSharedPrefs.setGeofencingStarted(true);
+                mSharedPrefs.enableGeoFenceService();
+            }
+            buildScreen();
+        } else {
+            UsefulBits.showSimpleToast(this, this.getString(R.string.security_wrong_password_fingerprint), Toast.LENGTH_LONG);
+
+            if (dialog != null)
+                dialog.dismiss();
+
+            FingerprintDialog.show(this, getString(R.string.app_name), 69, true);
+        }
+    }
+
+    @Override
+    public void onFingerprintDialogStageUpdated(FingerprintDialog dialog, FingerprintDialog.Stage stage) {
+
+    }
+
+    @Override
+    public void onFingerprintDialogCancelled() {
+        this.finish();
     }
 }

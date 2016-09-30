@@ -130,6 +130,7 @@ public class LocationAdapter extends BaseAdapter {
 
         holder.name.setText(mLocationInfo.getName());
         holder.radius.setText(context.getString(R.string.radius) + ": " + mLocationInfo.getRadius());
+
         if (!UsefulBits.isEmpty(mLocationInfo.getSwitchName())) {
             holder.connectedSwitch.setText(context.getString(R.string.connectedSwitch) + ": " + mLocationInfo.getSwitchName());
         } else if (mLocationInfo.getSwitchIdx() > 0) {
@@ -138,6 +139,9 @@ public class LocationAdapter extends BaseAdapter {
             holder.connectedSwitch.setText(context.getString(R.string.connectedSwitch)
                     + ": " + context.getString(R.string.not_available));
         }
+
+        if (!UsefulBits.isEmpty(mLocationInfo.getValue()))
+            holder.connectedSwitch.setText(holder.connectedSwitch.getText() + " - " + mLocationInfo.getValue());
 
         holder.remove.setId(mLocationInfo.getID());
         holder.remove.setOnClickListener(new View.OnClickListener() {

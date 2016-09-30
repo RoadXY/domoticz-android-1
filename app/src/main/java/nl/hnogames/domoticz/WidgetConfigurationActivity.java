@@ -14,17 +14,21 @@ import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.Toast;
 
+import com.afollestad.materialdialogs.MaterialDialog;
+
 import java.util.ArrayList;
 
 import nl.hnogames.domoticz.Adapters.WidgetsAdapter;
-import nl.hnogames.domoticz.Containers.DevicesInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
-import nl.hnogames.domoticz.Interfaces.DevicesReceiver;
 import nl.hnogames.domoticz.Service.WidgetProviderLarge;
 import nl.hnogames.domoticz.UI.PasswordDialog;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
 import nl.hnogames.domoticz.Welcome.WelcomeViewActivity;
+import nl.hnogames.domoticz.app.AppController;
+import nl.hnogames.domoticzapi.Containers.DevicesInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.DomoticzValues;
+import nl.hnogames.domoticzapi.Interfaces.DevicesReceiver;
 
 import static android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID;
 import static android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID;
@@ -58,7 +62,7 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
             this.finish();
         }
 
-        domoticz = new Domoticz(this, null);
+        domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
         this.setTitle(getString(R.string.pick_device_title));
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(false);
@@ -126,7 +130,10 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
                                 passwordDialog.onDismissListener(new PasswordDialog.DismissListener() {
                                     @Override
                                     public void onDismiss(String password) {
-                                        showAppWidget(mDeviceInfo, password);
+                                        if (mDeviceInfo.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.SELECTOR)
+                                            showSelectorDialog(mDeviceInfo, password);
+                                        else
+                                            showAppWidget(mDeviceInfo, password, null);
                                     }
 
                                     @Override
@@ -134,11 +141,13 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
                                     }
                                 });
                             } else {
-                                showAppWidget(mDeviceInfo, null);
+                                if (mDeviceInfo.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.SELECTOR)
+                                    showSelectorDialog(mDeviceInfo, null);
+                                else
+                                    showAppWidget(mDeviceInfo, null, null);
                             }
                         }
                     });
-
                     listView.setAdapter(adapter);
                 }
 
@@ -159,7 +168,21 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
         }
     }
 
-    private void showAppWidget(DevicesInfo mSelectedSwitch, String password) {
+    private void showSelectorDialog(final DevicesInfo selector, final String pass) {
+        final String[] levelNames = selector.getLevelNames();
+        new MaterialDialog.Builder(this)
+                .title(R.string.selector_value)
+                .items(levelNames)
+                .itemsCallback(new MaterialDialog.ListCallback() {
+                    @Override
+                    public void onSelection(MaterialDialog dialog, View view, int which, CharSequence text) {
+                        showAppWidget(selector, pass, String.valueOf(text));
+                    }
+                })
+                .show();
+    }
+
+    private void showAppWidget(DevicesInfo mSelectedSwitch, String password, String value) {
         mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
         Intent intent = getIntent();
         Bundle extras = intent.getExtras();
@@ -170,12 +193,12 @@ public class WidgetConfigurationActivity extends AppCompatActivity {
                     INVALID_APPWIDGET_ID);
 
             if (UsefulBits.isEmpty(mSelectedSwitch.getType())) {
-                mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, false, password);
+                mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, false, password, value);
             } else {
-                if (mSelectedSwitch.getType().equals(Domoticz.Scene.Type.GROUP) || mSelectedSwitch.getType().equals(Domoticz.Scene.Type.SCENE)) {
-                    mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, true, password);
+                if (mSelectedSwitch.getType().equals(DomoticzValues.Scene.Type.GROUP) || mSelectedSwitch.getType().equals(DomoticzValues.Scene.Type.SCENE)) {
+                    mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, true, password, value);
                 } else {
-                    mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, false, password);
+                    mSharedPrefs.setWidgetIDX(mAppWidgetId, idx, false, password, value);
                 }
             }
 

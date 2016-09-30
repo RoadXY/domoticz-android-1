@@ -120,6 +120,9 @@ public class SpeechAdapter extends BaseAdapter {
                     + ": " + context.getString(R.string.not_available));
         }
 
+        if (!UsefulBits.isEmpty(mSpeechInfo.getValue()))
+            holder.Speech_tag_id.setText(holder.Speech_tag_id.getText() + " - " + mSpeechInfo.getValue());
+
         holder.Speech_switch_idx.setText("Commando's: \r\n" + "'" + mSpeechInfo.getName() + "' " + "\r\n'" + mSpeechInfo.getName() + " " + context.getString(R.string.button_state_on).toLowerCase() + "'\r\n" +
                 "'" + mSpeechInfo.getName() + " " + context.getString(R.string.button_state_off).toLowerCase() + "'");
 

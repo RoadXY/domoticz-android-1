@@ -25,7 +25,6 @@ package nl.hnogames.domoticz;
 import android.Manifest;
 import android.app.PendingIntent;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -53,25 +52,26 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.location.places.Place;
-import com.google.android.gms.location.places.ui.PlacePicker;
 import com.google.android.gms.maps.model.LatLng;
 import com.nhaarman.listviewanimations.appearance.simple.SwingBottomInAnimationAdapter;
 
 import java.util.ArrayList;
 
+import hugo.weaving.DebugLog;
 import nl.hnogames.domoticz.Adapters.LocationAdapter;
 import nl.hnogames.domoticz.Containers.LocationInfo;
-import nl.hnogames.domoticz.Containers.SwitchInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Interfaces.LocationClickListener;
-import nl.hnogames.domoticz.Interfaces.SwitchesReceiver;
 import nl.hnogames.domoticz.UI.LocationDialog;
 import nl.hnogames.domoticz.UI.SwitchDialog;
 import nl.hnogames.domoticz.Utils.GeoUtil;
 import nl.hnogames.domoticz.Utils.PermissionsUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticz.app.AppController;
+import nl.hnogames.domoticzapi.Containers.DevicesInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.DomoticzValues;
+import nl.hnogames.domoticzapi.Interfaces.DevicesReceiver;
 
 public class GeoSettingsActivity extends AppCompatActivity
         implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
@@ -101,20 +101,6 @@ public class GeoSettingsActivity extends AppCompatActivity
     private boolean isLocationUpdatesStarted;
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        // Check which request we're responding to
-        if (requestCode == PLACE_PICKER_REQUEST) {
-            // Make sure the request was successful
-            if (resultCode == RESULT_OK) {
-                // The user picked a place.
-                Place place = PlacePicker.getPlace(this, data);
-                String text = String.format(getString(R.string.geofence_place), place.getName());
-                UsefulBits.showSnackbar(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT);
-            }
-        }
-    }
-
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         mSharedPrefs = new SharedPrefUtil(this);
         if (mSharedPrefs.darkThemeEnabled())
@@ -131,12 +117,11 @@ public class GeoSettingsActivity extends AppCompatActivity
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         this.setTitle(R.string.geofence);
 
-        domoticz = new Domoticz(this, null);
+        domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
         coordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinatorLayout);
         if (mSharedPrefs.darkThemeEnabled()) {
             coordinatorLayout.setBackgroundColor(getResources().getColor(R.color.background_dark));
         }
-
         createListView();
         initSwitches();
         createLocationRequest();
@@ -189,7 +174,7 @@ public class GeoSettingsActivity extends AppCompatActivity
 
     private void showSwitchesDialog(
             final LocationInfo selectedLocation,
-            ArrayList<SwitchInfo> switches) {
+            final ArrayList<DevicesInfo> switches) {
 
         SwitchDialog infoDialog = new SwitchDialog(
                 GeoSettingsActivity.this, switches,
@@ -202,13 +187,36 @@ public class GeoSettingsActivity extends AppCompatActivity
                 selectedLocation.setSwitchIdx(selectedSwitchIDX);
                 selectedLocation.setSwitchPassword(selectedSwitchPassword);
                 selectedLocation.setSwitchName(selectedSwitchName);
-                mSharedPrefs.updateLocation(selectedLocation);
-                adapter.data = mSharedPrefs.getLocations();
-                adapter.notifyDataSetChanged();
+                for (DevicesInfo s : switches) {
+                    if (s.getIdx() == selectedSwitchIDX && s.getSwitchTypeVal() == DomoticzValues.Device.Type.Value.SELECTOR)
+                        showSelectorDialog(selectedLocation, s);
+                    else {
+                        mSharedPrefs.updateLocation(selectedLocation);
+                        adapter.data = mSharedPrefs.getLocations();
+                        adapter.notifyDataSetChanged();
+                    }
+                }
             }
         });
 
         infoDialog.show();
+    }
+
+    private void showSelectorDialog(final LocationInfo selectedLocation, DevicesInfo selector) {
+        final String[] levelNames = selector.getLevelNames();
+        new MaterialDialog.Builder(this)
+                .title(R.string.selector_value)
+                .items(levelNames)
+                .itemsCallback(new MaterialDialog.ListCallback() {
+                    @Override
+                    public void onSelection(MaterialDialog dialog, View view, int which, CharSequence text) {
+                        selectedLocation.setValue(String.valueOf(text));
+                        mSharedPrefs.updateLocation(selectedLocation);
+                        adapter.data = mSharedPrefs.getLocations();
+                        adapter.notifyDataSetChanged();
+                    }
+                })
+                .show();
     }
 
     private void createListView() {
@@ -310,13 +318,20 @@ public class GeoSettingsActivity extends AppCompatActivity
     }
 
     private void getSwitchesAndShowSwitchesDialog(final LocationInfo locationInfo) {
-        domoticz.getSwitches(new SwitchesReceiver() {
+        domoticz.getDevices(new DevicesReceiver() {
             @Override
-            public void onReceiveSwitches(ArrayList<SwitchInfo> switches) {
+            @DebugLog
+            public void onReceiveDevices(ArrayList<DevicesInfo> switches) {
                 showSwitchesDialog(locationInfo, switches);
             }
 
             @Override
+            @DebugLog
+            public void onReceiveDevice(DevicesInfo mDevicesInfo) {
+            }
+
+            @Override
+            @DebugLog
             public void onError(Exception error) {
                 UsefulBits.showSnackbarWithAction(GeoSettingsActivity.this, coordinatorLayout, GeoSettingsActivity.this.getString(R.string.unable_to_get_switches), Snackbar.LENGTH_SHORT,
                         null, new View.OnClickListener() {
@@ -326,7 +341,7 @@ public class GeoSettingsActivity extends AppCompatActivity
                             }
                         }, GeoSettingsActivity.this.getString(R.string.retry));
             }
-        });
+        }, 0, "light");
     }
 
     private boolean showNoDeviceAttachedDialog(final LocationInfo locationInfo) {
@@ -554,7 +569,6 @@ public class GeoSettingsActivity extends AppCompatActivity
         locationDialog.setLocationToEdit(location);
         locationDialog.setRadius(location.getRadius());
         locationDialog.setCurrentLocation(null);            // Set to null so its in edit mode
-
         locationDialog.onDismissListener(new LocationDialog.DismissListener() {
             @Override
             public void onDismiss(LocationInfo location) {
@@ -612,7 +626,7 @@ public class GeoSettingsActivity extends AppCompatActivity
     private void startGeofenceService() {
         if (mSharedPrefs.isGeofenceEnabled()) {
             mSharedPrefs.enableGeoFenceService();
-            if (domoticz.isDebugEnabled())
+            if (mSharedPrefs.isDebugEnabled())
                 UsefulBits.showSnackbar(this, coordinatorLayout, R.string.starting_geofence_service, Snackbar.LENGTH_SHORT);
             isGeofenceServiceStarted = true;
         }

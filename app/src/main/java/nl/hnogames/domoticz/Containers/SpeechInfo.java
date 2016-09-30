@@ -30,6 +30,7 @@ public class SpeechInfo {
     private int switchIdx;
     private String switchName;
     private String switchPassword = "";
+    private String value;
 
     public String getId() {
         return id;
@@ -45,6 +46,14 @@ public class SpeechInfo {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
     }
 
     public int getSwitchIdx() {

@@ -33,7 +33,7 @@ import java.io.ObjectOutputStream;
 
 public class SerializableManager {
 
-    public static void cleanAllSerializableObjects(Context context){
+    public static void cleanAllSerializableObjects(Context context) {
         removeSerializable(context, "Dashboard");
         removeSerializable(context, "Switches");
         removeSerializable(context, "Weathers");
@@ -116,6 +116,7 @@ public class SerializableManager {
     public static void removeSerializable(Context context, String filename) {
         try {
             context.deleteFile(filename);
-        }catch(Exception ex){}
+        } catch (Exception ex) {
+        }
     }
 }

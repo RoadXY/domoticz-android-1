@@ -32,15 +32,15 @@ import java.util.ArrayList;
 import hugo.weaving.DebugLog;
 import jp.wasabeef.recyclerview.adapters.SlideInBottomAnimationAdapter;
 import nl.hnogames.domoticz.Adapters.EventsAdapter;
-import nl.hnogames.domoticz.Containers.EventInfo;
 import nl.hnogames.domoticz.Interfaces.DomoticzFragmentListener;
-import nl.hnogames.domoticz.Interfaces.EventReceiver;
 import nl.hnogames.domoticz.Interfaces.EventsClickListener;
 import nl.hnogames.domoticz.MainActivity;
 import nl.hnogames.domoticz.R;
 import nl.hnogames.domoticz.Utils.SerializableManager;
 import nl.hnogames.domoticz.Utils.UsefulBits;
 import nl.hnogames.domoticz.app.DomoticzRecyclerFragment;
+import nl.hnogames.domoticzapi.Containers.EventInfo;
+import nl.hnogames.domoticzapi.Interfaces.EventReceiver;
 
 public class Events extends DomoticzRecyclerFragment implements DomoticzFragmentListener {
 
@@ -106,7 +106,8 @@ public class Events extends DomoticzRecyclerFragment implements DomoticzFragment
                     @DebugLog
                     public void onEventClick(final int id, boolean action) {
                         UsefulBits.showSnackbar(mContext, coordinatorLayout, R.string.action_not_supported_yet, Snackbar.LENGTH_SHORT);
-                        ((MainActivity) getActivity()).Talk(R.string.action_not_supported_yet);
+                        if (getActivity() instanceof MainActivity)
+                            ((MainActivity) getActivity()).Talk(R.string.action_not_supported_yet);
                     }
                 });
                 alphaSlideIn = new SlideInBottomAnimationAdapter(adapter);

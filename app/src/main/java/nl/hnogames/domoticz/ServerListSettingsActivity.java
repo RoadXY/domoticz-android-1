@@ -39,12 +39,12 @@ import com.nhaarman.listviewanimations.appearance.simple.SwingBottomInAnimationA
 import java.util.ArrayList;
 
 import nl.hnogames.domoticz.Adapters.ServerAdapter;
-import nl.hnogames.domoticz.Containers.ServerInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Interfaces.ServerClickListener;
-import nl.hnogames.domoticz.Utils.ServerUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticzapi.Containers.ServerInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.Utils.ServerUtil;
 
 
 public class ServerListSettingsActivity extends AppCompatActivity {
@@ -90,7 +90,7 @@ public class ServerListSettingsActivity extends AppCompatActivity {
             @Override
             public boolean onEnableClick(ServerInfo server, boolean checked) {
                 if (server.getServerName().equals(Domoticz.DOMOTICZ_DEFAULT_SERVER)) {
-                    UsefulBits.showSimpleSnackbar(ServerListSettingsActivity.this, coordinatorLayout, R.string.cant_disable_default_server, Snackbar.LENGTH_SHORT);
+                    UsefulBits.showSnackbar(ServerListSettingsActivity.this, coordinatorLayout, R.string.cant_disable_default_server, Snackbar.LENGTH_SHORT);
                     server.setEnabled(!checked);
                     createListView();                           //reset values
                 } else {
@@ -103,7 +103,7 @@ public class ServerListSettingsActivity extends AppCompatActivity {
             @Override
             public void onRemoveClick(ServerInfo server) {
                 if (server.getServerName().equals(Domoticz.DOMOTICZ_DEFAULT_SERVER)) {
-                    UsefulBits.showSimpleSnackbar(ServerListSettingsActivity.this, coordinatorLayout, R.string.cant_remove_default_server, Snackbar.LENGTH_SHORT);
+                    UsefulBits.showSnackbar(ServerListSettingsActivity.this, coordinatorLayout, R.string.cant_remove_default_server, Snackbar.LENGTH_SHORT);
                 } else
                     showRemoveUndoSnackbar(server);
             }
@@ -119,7 +119,7 @@ public class ServerListSettingsActivity extends AppCompatActivity {
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int item, long id) {
-                showEditServerActivity((String) ((TextView) view.findViewById(R.id.server_name)).getText());
+                showEditServerActivity(String.valueOf(((TextView) view.findViewById(R.id.server_name)).getText()));
             }
         });
     }
@@ -139,7 +139,7 @@ public class ServerListSettingsActivity extends AppCompatActivity {
         String text = String.format(getString(R.string.something_deleted),
                 getString(R.string.server));
 
-        UsefulBits.showSnackbar(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
+        UsefulBits.showSnackbarWithAction(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
             @Override
             public void onDismissed(Snackbar snackbar, int event) {
                 super.onDismissed(snackbar, event);

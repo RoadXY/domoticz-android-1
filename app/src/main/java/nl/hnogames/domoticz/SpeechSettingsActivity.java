@@ -50,15 +50,16 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 import nl.hnogames.domoticz.Adapters.SpeechAdapter;
-import nl.hnogames.domoticz.Containers.SpeechInfo;
-import nl.hnogames.domoticz.Containers.SwitchInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Interfaces.SpeechClickListener;
-import nl.hnogames.domoticz.Interfaces.SwitchesReceiver;
 import nl.hnogames.domoticz.UI.SwitchDialog;
 import nl.hnogames.domoticz.Utils.PermissionsUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticz.app.AppController;
+import nl.hnogames.domoticzapi.Containers.SpeechInfo;
+import nl.hnogames.domoticzapi.Containers.SwitchInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.Interfaces.SwitchesReceiver;
 
 
 public class SpeechSettingsActivity extends AppCompatActivity implements SpeechClickListener {
@@ -98,13 +99,13 @@ public class SpeechSettingsActivity extends AppCompatActivity implements SpeechC
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         this.setTitle(R.string.category_Speech);
 
-        domoticz = new Domoticz(this, null);
+        domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
         SpeechList = mSharedPrefs.getSpeechList();
         adapter = new SpeechAdapter(this, SpeechList, this);
 
         createListView();
 
-        UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.Speech_register, Snackbar.LENGTH_SHORT);
+        UsefulBits.showSnackbar(this, coordinatorLayout, R.string.Speech_register, Snackbar.LENGTH_SHORT);
     }
 
     private void createListView() {
@@ -158,7 +159,7 @@ public class SpeechSettingsActivity extends AppCompatActivity implements SpeechC
 
             @Override
             public void onError(Exception error) {
-                UsefulBits.showSnackbar(SpeechSettingsActivity.this, coordinatorLayout, SpeechSettingsActivity.this.getString(R.string.unable_to_get_switches), Snackbar.LENGTH_SHORT,
+                UsefulBits.showSnackbarWithAction(SpeechSettingsActivity.this, coordinatorLayout, SpeechSettingsActivity.this.getString(R.string.unable_to_get_switches), Snackbar.LENGTH_SHORT,
                         null, new View.OnClickListener() {
                             @Override
                             public void onClick(View v) {
@@ -255,7 +256,7 @@ public class SpeechSettingsActivity extends AppCompatActivity implements SpeechC
         String text = String.format(getString(R.string.something_deleted),
                 getString(R.string.Speech));
 
-        UsefulBits.showSnackbar(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
+        UsefulBits.showSnackbarWithAction(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
             @Override
             public void onDismissed(Snackbar snackbar, int event) {
                 super.onDismissed(snackbar, event);
@@ -419,13 +420,13 @@ public class SpeechSettingsActivity extends AppCompatActivity implements SpeechC
         }
 
         if (newTagFound) {
-            UsefulBits.showSimpleSnackbar(SpeechSettingsActivity.this, coordinatorLayout, getString(R.string.Speech_saved) + ": " + speechText, Snackbar.LENGTH_SHORT);
+            UsefulBits.showSnackbar(SpeechSettingsActivity.this, coordinatorLayout, getString(R.string.Speech_saved) + ": " + speechText, Snackbar.LENGTH_SHORT);
             SpeechInfo SpeechInfo = new SpeechInfo();
             SpeechInfo.setId(speechText);
             SpeechInfo.setName(speechText);
             updateSpeech(SpeechInfo);
         } else {
-            UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.Speech_exists, Snackbar.LENGTH_SHORT);
+            UsefulBits.showSnackbar(this, coordinatorLayout, R.string.Speech_exists, Snackbar.LENGTH_SHORT);
             busyWithSpeech = false;
         }
     }

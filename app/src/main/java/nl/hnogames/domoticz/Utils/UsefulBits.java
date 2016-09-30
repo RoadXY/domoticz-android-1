@@ -62,16 +62,18 @@ import java.util.UUID;
 
 import hugo.weaving.DebugLog;
 import nl.hnogames.domoticz.BuildConfig;
-import nl.hnogames.domoticz.Containers.AuthInfo;
-import nl.hnogames.domoticz.Containers.ConfigInfo;
-import nl.hnogames.domoticz.Containers.UserInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
-import nl.hnogames.domoticz.Interfaces.AuthReceiver;
-import nl.hnogames.domoticz.Interfaces.ConfigReceiver;
-import nl.hnogames.domoticz.Interfaces.UsersReceiver;
 import nl.hnogames.domoticz.MainActivity;
 import nl.hnogames.domoticz.R;
 import nl.hnogames.domoticz.Service.TaskService;
+import nl.hnogames.domoticz.app.AppController;
+import nl.hnogames.domoticzapi.Containers.AuthInfo;
+import nl.hnogames.domoticzapi.Containers.ConfigInfo;
+import nl.hnogames.domoticzapi.Containers.UserInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.Interfaces.AuthReceiver;
+import nl.hnogames.domoticzapi.Interfaces.ConfigReceiver;
+import nl.hnogames.domoticzapi.Interfaces.UsersReceiver;
+import nl.hnogames.domoticzapi.Utils.ServerUtil;
 
 public class UsefulBits {
     public static final String TASK_TAG_PERIODIC = "taskPeriodic";
@@ -205,6 +207,7 @@ public class UsefulBits {
         conf.locale = myLocale;
         res.updateConfiguration(conf, dm);
     }
+
 
     /**
      * Get's the display language of the phone
@@ -384,7 +387,7 @@ public class UsefulBits {
     @DebugLog
     public static void getServerConfigForActiveServer(final Context context, boolean forced, final ConfigReceiver receiver, final ConfigInfo currentConfig) {
         final ServerUtil mServerUtil = new ServerUtil(context);
-        final Domoticz domoticz = new Domoticz(context, mServerUtil);
+        final Domoticz domoticz = new Domoticz(context, AppController.getInstance().getRequestQueue());
         final long currentTime = Calendar.getInstance().getTimeInMillis();
 
         if (currentConfig != null && !forced) {
@@ -392,13 +395,6 @@ public class UsefulBits {
             int age = UsefulBits.differenceInDays(dateOfConfig, currentTime);
             if (age < DAYS_TO_CHECK_FOR_SERVER_CONFIG) {
                 Log.i(TAG, "Skipping ConfigInfo fetch which is " + String.valueOf(age) + " days old");
-                if (domoticz.isDebugEnabled())
-                    showSimpleToast(context,
-                            "Skipping ConfigInfo fetch which is only "
-                                    + String.valueOf(age)
-                                    + " days old (max is: "
-                                    + String.valueOf(DAYS_TO_CHECK_FOR_SERVER_CONFIG)
-                                    + " days old)", Toast.LENGTH_SHORT);
                 receiver.onReceiveConfig(currentConfig);
                 return;
             }
@@ -463,9 +459,13 @@ public class UsefulBits {
             @Override
             @DebugLog
             public void onError(Exception error) {
-                showSimpleToast(context, String.format(
-                        context.getString(R.string.error_couldNotCheckForConfig),
-                        domoticz.getErrorMessage(error)), Toast.LENGTH_SHORT);
+                if (error != null && domoticz != null)
+                    showSimpleToast(context, String.format(
+                            context.getString(R.string.error_couldNotCheckForConfig),
+                            domoticz.getErrorMessage(error)), Toast.LENGTH_SHORT);
+
+                if (receiver != null)
+                    receiver.onError(error);
             }
         });
     }
@@ -502,16 +502,16 @@ public class UsefulBits {
     }
 
     @DebugLog
-    public static void showSimpleSnackbar(Context context, CoordinatorLayout coordinatorLayout, int message_resource_id, int length) {
+    public static void showSnackbar(final Context context, CoordinatorLayout coordinatorLayout, final int message_resource_id, int length) {
         try {
             if (context != null && coordinatorLayout != null)
-                showSimpleSnackbar(context, coordinatorLayout, context.getString(message_resource_id), length);
+                showSnackbar(context, coordinatorLayout, context.getString(message_resource_id), length);
         } catch (Exception ex) {
         }
     }
 
     @DebugLog
-    public static void showSimpleSnackbar(Context context, CoordinatorLayout coordinatorLayout, String message, int length) {
+    public static void showSnackbar(Context context, CoordinatorLayout coordinatorLayout, final String message, int length) {
         try {
             if (context != null && coordinatorLayout != null && !UsefulBits.isEmpty(message))
                 Snackbar.make(coordinatorLayout, message, length).show();
@@ -520,9 +520,9 @@ public class UsefulBits {
     }
 
     @DebugLog
-    public static void showSnackbar(Context context, CoordinatorLayout coordinatorLayout, String message, int length,
-                                    Snackbar.Callback callback,
-                                    View.OnClickListener onclickListener, String actiontext) {
+    public static void showSnackbarWithAction(Context context, CoordinatorLayout coordinatorLayout, final String message, int length,
+                                              Snackbar.Callback callback,
+                                              View.OnClickListener onclickListener, String actiontext) {
         try {
             if (context != null &&
                     coordinatorLayout != null &&
@@ -594,7 +594,9 @@ public class UsefulBits {
                 mSharedPrefs.setAPKValidated(true);
             else
                 mSharedPrefs.setAPKValidated(false);
-        } else {
+        }
+
+        if (!BuildConfig.DEBUG) {
             // release build
             PiracyChecker oPiracyChecker = new PiracyChecker(context);
             oPiracyChecker

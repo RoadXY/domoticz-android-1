@@ -52,15 +52,16 @@ import org.json.JSONException;
 import java.util.List;
 
 import jp.wasabeef.recyclerview.animators.SlideInUpAnimator;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Interfaces.DomoticzFragmentListener;
 import nl.hnogames.domoticz.MainActivity;
 import nl.hnogames.domoticz.PlanActivity;
 import nl.hnogames.domoticz.R;
-import nl.hnogames.domoticz.Utils.PhoneConnectionUtil;
-import nl.hnogames.domoticz.Utils.ServerUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.DomoticzValues;
+import nl.hnogames.domoticzapi.Utils.PhoneConnectionUtil;
+import nl.hnogames.domoticzapi.Utils.ServerUtil;
 
 public class DomoticzRecyclerFragment extends Fragment {
 
@@ -144,7 +145,8 @@ public class DomoticzRecyclerFragment extends Fragment {
             if (getActivity().getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT)
                 isPortrait = true;
             if (getActivity() instanceof MainActivity) {
-                isTablet = !((MainActivity) getActivity()).onPhone;
+                isTablet = !
+                        ((MainActivity) getActivity()).onPhone;
             }
 
             gridView.setHasFixedSize(true);
@@ -183,8 +185,8 @@ public class DomoticzRecyclerFragment extends Fragment {
         super.onActivityCreated(savedInstanceState);
 
         mSharedPrefs = new SharedPrefUtil(getActivity());
-        mDomoticz = new Domoticz(getActivity(), getServerUtil());
-        debug = mDomoticz.isDebugEnabled();
+        mDomoticz = new Domoticz(getActivity(), AppController.getInstance().getRequestQueue());
+        debug = mSharedPrefs.isDebugEnabled();
 
         if (debug)
             showDebugLayout();
@@ -248,9 +250,9 @@ public class DomoticzRecyclerFragment extends Fragment {
      * @param result Result text to handle
      */
     public void successHandling(String result, boolean displayToast) {
-        if (result.equalsIgnoreCase(Domoticz.Result.ERROR))
+        if (result.equalsIgnoreCase(DomoticzValues.Result.ERROR))
             Toast.makeText(getActivity(), R.string.action_failed, Toast.LENGTH_SHORT).show();
-        else if (result.equalsIgnoreCase(Domoticz.Result.OK)) {
+        else if (result.equalsIgnoreCase(DomoticzValues.Result.OK)) {
             if (displayToast)
                 Toast.makeText(getActivity(), R.string.action_success, Toast.LENGTH_SHORT).show();
         } else {
@@ -280,8 +282,11 @@ public class DomoticzRecyclerFragment extends Fragment {
             } else
                 setErrorMessage(errorMessage);
         } else {
-            if (coordinatorLayout != null)
-                UsefulBits.showSimpleSnackbar(getContext(), coordinatorLayout, R.string.error_notConnected, Snackbar.LENGTH_SHORT);
+            if (coordinatorLayout != null) {
+                UsefulBits.showSnackbar(getContext(), coordinatorLayout, R.string.error_notConnected, Snackbar.LENGTH_SHORT);
+                if (getActivity() instanceof MainActivity)
+                    ((MainActivity) getActivity()).Talk(R.string.error_notConnected);
+            }
         }
     }
 
@@ -364,13 +369,6 @@ public class DomoticzRecyclerFragment extends Fragment {
                     debugText = (TextView) root.findViewById(R.id.debugText);
                     if (debugText != null) {
                         debugText.setMovementMethod(new ScrollingMovementMethod());
-                        debugText.setOnLongClickListener(new View.OnLongClickListener() {
-                            @Override
-                            public boolean onLongClick(View view) {
-                                mDomoticz.debugTextToClipboard(debugText);
-                                return false;
-                            }
-                        });
                     }
                 }
             }

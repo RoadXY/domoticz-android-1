@@ -43,15 +43,16 @@ import com.nhaarman.listviewanimations.appearance.simple.SwingBottomInAnimationA
 import java.util.ArrayList;
 
 import nl.hnogames.domoticz.Adapters.QRCodeAdapter;
-import nl.hnogames.domoticz.Containers.QRCodeInfo;
-import nl.hnogames.domoticz.Containers.SwitchInfo;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Interfaces.QRCodeClickListener;
-import nl.hnogames.domoticz.Interfaces.SwitchesReceiver;
 import nl.hnogames.domoticz.UI.SwitchDialog;
 import nl.hnogames.domoticz.Utils.PermissionsUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
+import nl.hnogames.domoticz.app.AppController;
+import nl.hnogames.domoticzapi.Containers.QRCodeInfo;
+import nl.hnogames.domoticzapi.Containers.SwitchInfo;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.Interfaces.SwitchesReceiver;
 
 
 public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeClickListener {
@@ -85,13 +86,13 @@ public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeC
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         this.setTitle(R.string.category_QRCode);
 
-        domoticz = new Domoticz(this, null);
+        domoticz = new Domoticz(this, AppController.getInstance().getRequestQueue());
         qrcodeList = mSharedPrefs.getQRCodeList();
         adapter = new QRCodeAdapter(this, qrcodeList, this);
 
         createListView();
 
-        UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.qrcode_register, Snackbar.LENGTH_SHORT);
+        UsefulBits.showSnackbar(this, coordinatorLayout, R.string.qrcode_register, Snackbar.LENGTH_SHORT);
     }
 
     private void createListView() {
@@ -146,7 +147,7 @@ public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeC
 
             @Override
             public void onError(Exception error) {
-                UsefulBits.showSnackbar(QRCodeSettingsActivity.this, coordinatorLayout, QRCodeSettingsActivity.this.getString(R.string.unable_to_get_switches), Snackbar.LENGTH_SHORT,
+                UsefulBits.showSnackbarWithAction(QRCodeSettingsActivity.this, coordinatorLayout, QRCodeSettingsActivity.this.getString(R.string.unable_to_get_switches), Snackbar.LENGTH_SHORT,
                         null, new View.OnClickListener() {
                             @Override
                             public void onClick(View v) {
@@ -244,7 +245,7 @@ public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeC
         String text = String.format(getString(R.string.something_deleted),
                 getString(R.string.qrcode));
 
-        UsefulBits.showSnackbar(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
+        UsefulBits.showSnackbarWithAction(this, coordinatorLayout, text, Snackbar.LENGTH_SHORT, new Snackbar.Callback() {
             @Override
             public void onDismissed(Snackbar snackbar, int event) {
                 super.onDismissed(snackbar, event);
@@ -336,7 +337,7 @@ public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeC
             }
 
             if (newTagFound) {
-                UsefulBits.showSimpleSnackbar(this, coordinatorLayout, getString(R.string.qrcode_found) + ": " + QR_Code_ID, Snackbar.LENGTH_SHORT);
+                UsefulBits.showSnackbar(this, coordinatorLayout, getString(R.string.qrcode_found) + ": " + QR_Code_ID, Snackbar.LENGTH_SHORT);
                 new MaterialDialog.Builder(this)
                         .title(R.string.qrcode_found)
                         .content(R.string.qrcode_name)
@@ -345,7 +346,7 @@ public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeC
                             @Override
                             public void onInput(@NonNull MaterialDialog dialog, CharSequence input) {
                                 if (!UsefulBits.isEmpty(String.valueOf(input))) {
-                                    UsefulBits.showSimpleSnackbar(QRCodeSettingsActivity.this, coordinatorLayout, getString(R.string.qrcode_saved) + ": " + input, Snackbar.LENGTH_SHORT);
+                                    UsefulBits.showSnackbar(QRCodeSettingsActivity.this, coordinatorLayout, getString(R.string.qrcode_saved) + ": " + input, Snackbar.LENGTH_SHORT);
                                     QRCodeInfo qrCodeInfo = new QRCodeInfo();
                                     qrCodeInfo.setId(QR_Code_ID);
                                     qrCodeInfo.setName(String.valueOf(input));
@@ -355,7 +356,7 @@ public class QRCodeSettingsActivity extends AppCompatActivity implements QRCodeC
                             }
                         }).show();
             } else {
-                UsefulBits.showSimpleSnackbar(this, coordinatorLayout, R.string.qrcode_exists, Snackbar.LENGTH_SHORT);
+                UsefulBits.showSnackbar(this, coordinatorLayout, R.string.qrcode_exists, Snackbar.LENGTH_SHORT);
                 busyWithQRCode = false;
             }
         }

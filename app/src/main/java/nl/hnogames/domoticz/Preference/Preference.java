@@ -49,10 +49,8 @@ import java.util.HashSet;
 import java.util.List;
 
 import nl.hnogames.domoticz.BuildConfig;
-import nl.hnogames.domoticz.Domoticz.Domoticz;
 import nl.hnogames.domoticz.Fragments.Changelog;
 import nl.hnogames.domoticz.GeoSettingsActivity;
-import nl.hnogames.domoticz.Interfaces.MobileDeviceReceiver;
 import nl.hnogames.domoticz.NFCSettingsActivity;
 import nl.hnogames.domoticz.QRCodeSettingsActivity;
 import nl.hnogames.domoticz.R;
@@ -64,10 +62,12 @@ import nl.hnogames.domoticz.UI.SimpleTextDialog;
 import nl.hnogames.domoticz.UpdateActivity;
 import nl.hnogames.domoticz.Utils.DeviceUtils;
 import nl.hnogames.domoticz.Utils.PermissionsUtil;
-import nl.hnogames.domoticz.Utils.ServerUtil;
 import nl.hnogames.domoticz.Utils.SharedPrefUtil;
 import nl.hnogames.domoticz.Utils.UsefulBits;
 import nl.hnogames.domoticz.app.AppController;
+import nl.hnogames.domoticzapi.Domoticz;
+import nl.hnogames.domoticzapi.Interfaces.MobileDeviceReceiver;
+import nl.hnogames.domoticzapi.Utils.ServerUtil;
 
 public class Preference extends PreferenceFragment {
 
@@ -92,7 +92,7 @@ public class Preference extends PreferenceFragment {
         mContext = getActivity();
         mSharedPrefs = new SharedPrefUtil(mContext);
         ServerUtil mServerUtil = new ServerUtil(mContext);
-        mDomoticz = new Domoticz(mContext, mServerUtil);
+        mDomoticz = new Domoticz(mContext, AppController.getInstance().getRequestQueue());
 
         UsefulBits.checkAPK(mContext, mSharedPrefs);
 
@@ -118,6 +118,7 @@ public class Preference extends PreferenceFragment {
         android.preference.SwitchPreference EnableNFCPreference = (android.preference.SwitchPreference) findPreference("enableNFC");
         android.preference.SwitchPreference EnableQRCodePreference = (android.preference.SwitchPreference) findPreference("enableQRCode");
         android.preference.SwitchPreference EnableSpeechPreference = (android.preference.SwitchPreference) findPreference("enableSpeech");
+        android.preference.SwitchPreference EnableTalkBackPreference = (android.preference.SwitchPreference) findPreference("talkBack");
         MultiSelectListPreference drawerItems = (MultiSelectListPreference) findPreference("enable_menu_items");
         @SuppressWarnings("SpellCheckingInspection") android.preference.SwitchPreference AlwaysOnPreference = (android.preference.SwitchPreference) findPreference("alwayson");
         @SuppressWarnings("SpellCheckingInspection") android.preference.PreferenceScreen preferenceScreen = (android.preference.PreferenceScreen) findPreference("settingsscreen");
@@ -267,6 +268,17 @@ public class Preference extends PreferenceFragment {
             public boolean onPreferenceChange(android.preference.Preference preference, Object newValue) {
                 if (BuildConfig.LITE_VERSION || !mSharedPrefs.isAPKValidated()) {
                     showPremiumSnackbar(getString(R.string.category_Speech));
+                    return false;
+                }
+                return true;
+            }
+        });
+
+        EnableTalkBackPreference.setOnPreferenceChangeListener(new android.preference.Preference.OnPreferenceChangeListener() {
+            @Override
+            public boolean onPreferenceChange(android.preference.Preference preference, Object newValue) {
+                if (BuildConfig.LITE_VERSION || !mSharedPrefs.isAPKValidated()) {
+                    showPremiumSnackbar(getString(R.string.category_talk_back));
                     return false;
                 }
                 return true;
